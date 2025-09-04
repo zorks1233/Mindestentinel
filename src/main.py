@@ -3,69 +3,168 @@
 Einstiegspunkt für Mindestentinel.
 - Startet AIBrain, ModelManager, PluginManager
 - CLI-Flags:
-    --start-rest  : startet FastAPI REST API (uvicorn)
-    --start-ws    : startet WebSocket API
-    --no-start    : nur initialisiert (useful for interactive use)
+    --start-rest      : startet FastAPI REST API (uvicorn)
+    --start-ws        : startet WebSocket API
+    --enable-autonomy : aktiviert den autonomen Lernzyklus
+    --no-start        : nur initialisiert (useful for interactive use)
     --api-host / --api-port
 Beispiel:
-    python src/main.py --start-rest --api-port 8000
+    python -m src.main --start-rest --enable-autonomy --api-port 8000
 """
 
 from __future__ import annotations
 import argparse
 import multiprocessing
 import platform
-
 import os
 import logging
 import uvicorn
-from typing import Optional
+from typing import Optional, Tuple
+
+# Import des AutonomousLoop Moduls
+try:
+    from src.core.autonomous_loop import AutonomousLoop
+
+    AUTONOMY_AVAILABLE = True
+except ImportError as e:
+    logging.warning(f"AutonomousLoop konnte nicht importiert werden: {str(e)}")
+    AUTONOMY_AVAILABLE = False
 
 from src.core.model_manager import ModelManager
 from src.modules.plugin_manager import PluginManager
 from src.core.ai_engine import AIBrain
+from src.core.knowledge_base import KnowledgeBase
+from src.core.multi_model_orchestrator import MultiModelOrchestrator
+from src.core.rule_engine import RuleEngine
+from src.core.protection_module import ProtectionModule
+from src.core.system_monitor import SystemMonitor
 from src.api.rest_api import create_app
 from src.api.websocket_api import create_ws_app
 
 _LOG = logging.getLogger("mindestentinel.main")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
-def build_components(rules_path: Optional[str] = None):
+
+def build_components(rules_path: Optional[str] = None, enable_autonomy: bool = False) -> Tuple[
+    AIBrain, ModelManager, PluginManager, Optional['AutonomousLoop']]:
+    """
+    Initialisiert alle Systemkomponenten
+
+    Args:
+        rules_path: Pfad zur Regelkonfiguration
+        enable_autonomy: Gibt an, ob der autonome Lernzyklus benötigt wird
+
+    Returns:
+        Tupel mit (brain, model_manager, plugin_manager, autonomous_loop)
+        Der letzte Wert ist None, wenn enable_autonomy=False oder nicht verfügbar
+    """
     mm = ModelManager()
     pm = PluginManager()
+
+    # Initialisiere die RuleEngine ZUERST, da sie von mehreren Komponenten benötigt wird
+    rule_engine = RuleEngine(rules_path or os.path.join("config", "rules.yaml"))
+
+    # Initialisiere das AIBrain mit der Regelkonfiguration
     brain = AIBrain(rules_path or os.path.join("config", "rules.yaml"))
+
     # inject model manager
     brain.inject_model_manager(mm)
-    return brain, mm, pm
+
+    # Stelle sicher, dass alle benötigten Komponenten im Brain sind
+    # Erstelle sie, falls nicht vorhanden
+    if not hasattr(brain, 'knowledge_base') or brain.knowledge_base is None:
+        _LOG.info("knowledge_base nicht in AIBrain gefunden - initialisiere neu")
+        brain.knowledge_base = KnowledgeBase()
+
+    if not hasattr(brain, 'model_orchestrator') or brain.model_orchestrator is None:
+        _LOG.info("model_orchestrator nicht in AIBrain gefunden - initialisiere neu")
+        brain.model_orchestrator = MultiModelOrchestrator()
+
+    if not hasattr(brain, 'rule_engine') or brain.rule_engine is None:
+        _LOG.info("rule_engine nicht in AIBrain gefunden - verwende vorinitialisierte Instanz")
+        brain.rule_engine = rule_engine
+
+    if not hasattr(brain, 'protection_module') or brain.protection_module is None:
+        _LOG.info("protection_module nicht in AIBrain gefunden - initialisiere neu mit rule_engine")
+        brain.protection_module = ProtectionModule(rule_engine)
+
+    if not hasattr(brain, 'system_monitor') or brain.system_monitor is None:
+        _LOG.info("system_monitor nicht in AIBrain gefunden - initialisiere neu")
+        brain.system_monitor = SystemMonitor()
+
+    autonomous_loop = None
+    if enable_autonomy and AUTONOMY_AVAILABLE:
+        try:
+            _LOG.info("Initialisiere den autonomen Lernzyklus...")
+
+            # Initialisiere den autonomen Lernzyklus
+            autonomous_loop = AutonomousLoop(
+                ai_engine=brain,
+                knowledge_base=brain.knowledge_base,
+                model_orchestrator=brain.model_orchestrator,
+                rule_engine=brain.rule_engine,
+                protection_module=brain.protection_module,
+                model_manager=mm,
+                system_monitor=brain.system_monitor,
+                config={
+                    "max_learning_cycles": 1000,
+                    "learning_interval_seconds": 1800,  # Alle 30 Minuten
+                    "min_confidence_threshold": 0.65,
+                    "max_resource_usage": 0.85,
+                    "max_goal_complexity": 5,
+                    "safety_check_interval": 10
+                }
+            )
+            _LOG.info("Autonomer Lernzyklus erfolgreich initialisiert")
+        except Exception as e:
+            _LOG.error(f"Fehler bei der Initialisierung des autonomen Lernzyklus: {str(e)}", exc_info=True)
+            autonomous_loop = None
+
+    return brain, mm, pm, autonomous_loop
+
 
 def parse_args(argv=None):
-    p = argparse.ArgumentParser()
+    p = argparse.ArgumentParser(description='Mindestentinel - Autonomous AI System')
     p.add_argument("--start-rest", action="store_true", help="Start REST API (uvicorn)")
     p.add_argument("--start-ws", action="store_true", help="Start WebSocket API (uvicorn)")
-    p.add_argument("--api-host", default="0.0.0.0")
-    p.add_argument("--api-port", default=8000, type=int)
+    p.add_argument("--enable-autonomy", action="store_true", help="Aktiviert den autonomen Lernzyklus")
+    p.add_argument("--api-host", default="0.0.0.0", help="API host address")
+    p.add_argument("--api-port", default=8000, type=int, help="API port number")
     p.add_argument("--no-start", action="store_true", help="Init components but do not start any server")
     return p.parse_args(argv)
 
+
 def main(argv=None):
     args = parse_args(argv)
-    # Ensure multiprocessing start method is compatible on Windows
+    # Sicherstellen, dass die Multiprocessing-Startmethode kompatibel ist
     try:
         if platform.system() == 'Windows':
             multiprocessing.set_start_method('spawn', force=True)
-    except Exception:
-        pass
-    brain, mm, pm = build_components()
+    except Exception as e:
+        _LOG.warning(f"Multiprocessing-Startmethode konnte nicht gesetzt werden: {str(e)}")
 
-    # load plugins from plugins/ directory by default
+    # Initialisiere alle Komponenten
+    brain, mm, pm, autonomous_loop = build_components(enable_autonomy=args.enable_autonomy)
+
+    # Plugins aus dem plugins/ Verzeichnis laden
     try:
         loaded = pm.load_plugins_from_dir()
         _LOG.info("Plugins auto-loaded: %d", loaded)
     except Exception:
         _LOG.exception("Fehler beim Laden von Plugins")
 
-    # start brain (background loop etc.)
+    # Starte das Gehirn (Hintergrundloop etc.)
     brain.start()
+
+    # Starte den autonomen Lernzyklus, wenn aktiviert und erfolgreich initialisiert
+    if args.enable_autonomy and autonomous_loop is not None:
+        _LOG.info("Aktiviere autonomen Lernzyklus...")
+        autonomous_loop.start()
+    elif args.enable_autonomy and autonomous_loop is None:
+        _LOG.error("Autonomer Lernzyklus konnte nicht aktiviert werden. Starte ohne Autonomie.")
+    elif autonomous_loop is not None:
+        # Autonomie ist nicht gewünscht, aber der Loop wurde initialisiert - stoppe ihn
+        _LOG.info("Autonomer Lernzyklus initialisiert, aber nicht aktiviert. Halte bereit für spätere Aktivierung.")
 
     if args.no_start:
         _LOG.info("System initialisiert (no-start). AIBrain läuft im Hintergrund. Exit.")
@@ -83,12 +182,17 @@ def main(argv=None):
         _LOG.info("No API selected. Running in background. Use --start-rest or --start-ws to start servers.")
         try:
             while True:
-                # keep main thread alive while brain background runs
+                # Halte Hauptthread am Leben, während das Gehirn im Hintergrund läuft
                 import time
                 time.sleep(3600)
         except KeyboardInterrupt:
             _LOG.info("Received KeyboardInterrupt. Shutting down.")
+            # Stoppe den autonomen Lernzyklus, wenn aktiv
+            if args.enable_autonomy and autonomous_loop is not None:
+                _LOG.info("Deaktiviere autonomen Lernzyklus...")
+                autonomous_loop.stop()
             brain.stop()
+
 
 if __name__ == "__main__":
     try:

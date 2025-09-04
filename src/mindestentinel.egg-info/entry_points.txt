@@ -1,0 +1,3 @@
+[console_scripts]
+madmin = admin_console.console:main
+mindest = main:cli_entrypoint
