@@ -1,0 +1,24 @@
+fastapi>=0.95
+uvicorn[standard]>=0.22
+python-multipart>=0.0.6
+pydantic>=1.10
+psutil>=5.9
+zstandard>=0.19
+pyyaml>=6.0
+numpy>=1.24
+cryptography>=40.0
+pillow>=9.0
+soundfile>=0.12
+webrtcvad>=2.0.10
+transformers>=4.30.0
+torch>=2.2.0
+faiss-cpu>=1.7.4 ; platform_system!="Windows"
+qiskit>=0.40 ; extra == "qiskit"
+pennylane>=0.29 ; extra == "pennylane"
+matplotlib>=3.8
+requests>=2.31
+loguru>=0.7
+scikit-learn
+accelerate
+peft
+bitsandbytes
