@@ -1,4 +1,3 @@
-# rule_engine 
 # src/core/rule_engine.py
 """
 RuleEngine - läd und verwaltet die unumstößlichen Regeln (laws).
@@ -17,8 +16,10 @@ import re
 
 DEFAULT_RULES_PATH = Path("config") / "rules.yaml"
 
+
 class RuleViolationError(PermissionError):
     """Raised when an action violates one or more rules."""
+
 
 class RuleEngine:
     def __init__(self, rules_path: Optional[str] = None):
@@ -109,6 +110,47 @@ class RuleEngine:
         allowed = self.is_action_allowed(action_text, context=context)
         if not allowed:
             raise RuleViolationError(f"Aktion verweigert durch RuleEngine: '{action_text}'")
+
+    def check_rule_compliance(self, action: Dict) -> Dict:
+        """
+        Überprüft die Regelkonformität einer Aktion und gibt detaillierte Informationen zurück.
+
+        Args:
+            action: Die zu überprüfende Aktion
+
+        Returns:
+            Dict mit Ergebnis der Überprüfung
+        """
+        # Extrahiere relevante Informationen aus der Aktion
+        action_type = action.get("action", "unknown")
+        target = action.get("target", "")
+        category = action.get("category", "general")
+
+        # Erstelle einen Kontext für die Überprüfung
+        context = {
+            "actor": action.get("actor", "system"),
+            "category": category
+        }
+
+        # Prüfe, ob die Aktion erlaubt ist
+        compliant = self.is_action_allowed(target, context=context)
+
+        # Bestimme verletzte Regeln (wenn nicht konform)
+        violated_rules = []
+        if not compliant:
+            # In einer echten Implementierung würden wir hier die spezifischen verletzten Regeln identifizieren
+            violated_rules.append("Potentielle Regelverletzung erkannt - detaillierte Analyse erforderlich")
+
+        return {
+            "compliant": compliant,
+            "violated_rules": violated_rules,
+            "details": {
+                "action_type": action_type,
+                "target": target,
+                "category": category,
+                "analysis": "Aktion erlaubt" if compliant else "Aktion könnte gegen Regeln verstoßen"
+            }
+        }
 
     # Keine Methoden, die Regeln während Laufzeit verändern (immutability).
     # Wenn Admin Regeln ändern will, muss er die config/rules.yaml editieren und System neu starten.
