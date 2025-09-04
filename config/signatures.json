@@ -1,0 +1,10 @@
+{
+  "src/core/ai_brain.py": "",
+  "src/core/rule_engine.py": "",
+  "src/core/knowledge_base.py": "",
+  "src/core/quantum_computing.py": "",
+  "admin_console/commands/manage_rules.py": "889d7c6b3cb25f305a6ff0a5814aeda593aa978b679614a9d9bca813da419779",
+  "admin_console/commands/manage_training.py": "4503befda19e6479a6c88da1da1d25b7fc0eb661febc98aca2034443f91d3162",
+  "admin_console/commands/manage_roles.py": "5c1350047fdf92687d8a62d1ad872f02844a5855b9f304eaff87eb1a34e55f35",
+  "scripts/bootstrap_install.py": "ad7408433e0f1a136872c292a288f4e23eecf8409e2f91117042b81c8e046ebb"
+}

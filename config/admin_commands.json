@@ -1,0 +1,8 @@
+{
+  "commands": [
+    "admin_console/commands/manage_users.py",
+    "admin_console/commands/manage_rules.py",
+    "admin_console/commands/manage_training.py",
+    "admin_console/commands/manage_roles.py"
+  ]
+}

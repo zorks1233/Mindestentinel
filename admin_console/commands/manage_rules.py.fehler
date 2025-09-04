@@ -1,0 +1,54 @@
+# admin_console/commands/manage_rules.py
+import argparse, json
+from pathlib import Path
+from src.core.rule_engine import AutonomousRuleEngine
+
+def main():
+    p = argparse.ArgumentParser(prog='manage_rules')
+    sub = p.add_subparsers(dest='cmd')
+
+    sub_list = sub.add_parser('list')
+    sub_add = sub.add_parser('add')
+    sub_add.add_argument('--id', required=True)
+    sub_add.add_argument('--action', required=True)
+    sub_add.add_argument('--type', default='prohibition')
+    sub_add.add_argument('--message', default='Blocked by admin rule')
+
+    sub_sign = sub.add_parser('sign')
+    sub_sign.add_argument('--force', action='store_true')
+
+    sub_verify = sub.add_parser('verify')
+
+    args = p.parse_args()
+    engine = AutonomousRuleEngine(enforce_signature=False)
+    cfg = Path('config/rules.json')
+    cfg.parent.mkdir(parents=True, exist_ok=True)
+    if args.cmd == 'list':
+        print(json.dumps(engine.rules, indent=2))
+    elif args.cmd == 'add':
+        rules = engine.rules or []
+        rules.append({'id': args.id, 'action': args.action, 'type': args.type, 'message': args.message})
+        cfg.write_text(json.dumps(rules, indent=2))
+        print('Added rule', args.id)
+    elif args.cmd == 'sign':
+        from pathlib import Path
+        key = Path('config/rules_key.key')
+        if not key.exists() or args.force:
+            # use sign_rules script functionality indirectly
+            from scripts import sign_rules
+            sign_rules.main = None  # no-op; import to use file
+            # call via subprocess would be better, but keep simple:
+            import subprocess, sys
+            subprocess.check_call([sys.executable, 'scripts/sign_rules.py', 'sign'])
+            print('Rules signed')
+        else:
+            print('Key already exists; use --force to overwrite')
+    elif args.cmd == 'verify':
+        import subprocess, sys
+        res = subprocess.call([sys.executable, 'scripts/sign_rules.py', 'verify'])
+        raise SystemExit(res)
+    else:
+        p.print_help()
+
+if __name__ == '__main__':
+    main()

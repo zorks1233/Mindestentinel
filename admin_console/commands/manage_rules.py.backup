@@ -1,0 +1,66 @@
+#!/usr/bin/env python3
+"""
+admin_console/commands/manage_rules.py
+Simple CLI to manage rules.json (add/list/remove).
+"""
+import argparse, json, os, sys
+
+RULES_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'config', 'rules.json')
+RULES_PATH = os.path.normpath(RULES_PATH)
+
+def load_rules():
+    if not os.path.exists(RULES_PATH):
+        return []
+    with open(RULES_PATH, 'r', encoding='utf-8') as f:
+        return json.load(f)
+
+def save_rules(rules):
+    os.makedirs(os.path.dirname(RULES_PATH), exist_ok=True)
+    with open(RULES_PATH, 'w', encoding='utf-8') as f:
+        json.dump(rules, f, indent=2)
+
+def cmd_list(args):
+    rules = load_rules()
+    for r in rules:
+        print(f"- id: {r.get('id')} message: {r.get('message')}")
+
+def cmd_add(args):
+    rules = load_rules()
+    new = {
+        "id": args.id,
+        "type": args.type,
+        "message": args.message,
+        "context_conditions": {},
+        "action_conditions": {}
+    }
+    rules.append(new)
+    save_rules(rules)
+    print("Rule added.")
+
+def cmd_remove(args):
+    rules = load_rules()
+    rules = [r for r in rules if r.get('id') != args.id]
+    save_rules(rules)
+    print("Rule removed (if existed).")
+
+def main():
+    p = argparse.ArgumentParser()
+    sp = p.add_subparsers(dest='cmd')
+    p_list = sp.add_parser('list')
+    p_list.set_defaults(func=cmd_list)
+    p_add = sp.add_parser('add')
+    p_add.add_argument('--id', required=True)
+    p_add.add_argument('--type', default='prohibition')
+    p_add.add_argument('--message', default='Blocked by admin rule')
+    p_add.set_defaults(func=cmd_add)
+    p_rm = sp.add_parser('remove')
+    p_rm.add_argument('--id', required=True)
+    p_rm.set_defaults(func=cmd_remove)
+    args = p.parse_args()
+    if hasattr(args, 'func'):
+        args.func(args)
+    else:
+        p.print_help()
+
+if __name__ == '__main__':
+    main()

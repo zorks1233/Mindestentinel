@@ -1,0 +1,3 @@
+system:
+  logging_dir: logs
+  log_level: INFO

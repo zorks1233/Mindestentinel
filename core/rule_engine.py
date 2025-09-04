@@ -1,0 +1,114 @@
+# rule_engine 
+# src/core/rule_engine.py
+"""
+RuleEngine - läd und verwaltet die unumstößlichen Regeln (laws).
+Design:
+- Regeln liegen in einer YAML-Datei (z.B. config/rules_laws.yaml oder config/rules.yaml)
+- Regeln sind read-only während der Laufzeit (keine API zum Hinzufügen/Entfernen)
+- Prüft Aktionen/Commands auf Regelverletzungen und liefert klare Exceptions
+- Unterstützt einfache Pattern-Checks und Blacklist-Keywords
+"""
+
+from __future__ import annotations
+import yaml
+from pathlib import Path
+from typing import List, Dict, Any, Optional
+import re
+
+DEFAULT_RULES_PATH = Path("config") / "rules.yaml"
+
+class RuleViolationError(PermissionError):
+    """Raised when an action violates one or more rules."""
+
+class RuleEngine:
+    def __init__(self, rules_path: Optional[str] = None):
+        self.rules_path = Path(rules_path) if rules_path else DEFAULT_RULES_PATH
+        self._laws: List[str] = []
+        self._compiled_patterns: List[re.Pattern] = []
+        self._load_rules()
+
+    def _load_rules(self) -> None:
+        if not self.rules_path.exists():
+            # if missing, create minimal safe default (must be edited by admin)
+            default = {
+                "laws": [
+                    "Der Schöpfer hat die höchste Autorität.",
+                    "Keine Aktionen, die physikalischen Schaden verursachen, ohne ausdrückliche Genehmigung.",
+                    "Keine Verarbeitung personenbezogener Daten ohne Zustimmung."
+                ]
+            }
+            self.rules_path.parent.mkdir(parents=True, exist_ok=True)
+            with self.rules_path.open("w", encoding="utf-8") as fh:
+                yaml.safe_dump(default, fh, sort_keys=False, allow_unicode=True)
+            self._laws = default["laws"]
+        else:
+            with self.rules_path.open("r", encoding="utf-8") as fh:
+                data = yaml.safe_load(fh) or {}
+                self._laws = data.get("laws", [])
+        # Prepare simple patterns (lowercase) for quick checks
+        self._compiled_patterns = []
+        for law in self._laws:
+            # create patterns of important keywords, fallback to whole-text check
+            text = law.lower()
+            # extract words longer than 3 chars as potential keywords
+            keywords = [w for w in re.findall(r"\w{4,}", text)]
+            if keywords:
+                # pattern: any of keywords appears
+                pat = re.compile(r"|".join(re.escape(k) for k in keywords))
+            else:
+                pat = re.compile(re.escape(text))
+            self._compiled_patterns.append(pat)
+
+    def get_all_laws(self) -> List[str]:
+        """Gibt eine Kopie der geladenen Gesetze zurück."""
+        return list(self._laws)
+
+    def is_action_allowed(self, action_text: str, context: Optional[Dict[str, Any]] = None) -> bool:
+        """
+        Prüft basierend auf heuristischen Pattern-Matches, ob die Aktion potentiell
+        gegen eine Regel verstößt. Diese Methode ist konservativ: tritt ein Treffer
+        auf, liefert sie False (d.h. Aktion nicht erlaubt).
+        - action_text: reiner Text (z. B. Kommando / Beschreibung)
+        - context: optional, z. B. {"actor": "user", "target": "filesystem"}
+        """
+        if not action_text or not isinstance(action_text, str):
+            return False
+
+        low = action_text.lower()
+
+        # 1) Blacklist common dangerous terms (explicit)
+        blacklist = [
+            "delete all", "format", "drop table", "shutdown -h now",
+            "rm -rf /", "self-destruct", "kill process", "unauthoriz", "exploit"
+        ]
+        for b in blacklist:
+            if b in low:
+                return False
+
+        # 2) Pattern-based checks against laws
+        for pat in self._compiled_patterns:
+            if pat.search(low):
+                # If the law text refers to allowed actions, we need more logic.
+                # Conservative approach: treat any match as potential violation and require manual check.
+                return False
+
+        # 3) Context-based allow logic (simple)
+        if context:
+            actor = context.get("actor")
+            if actor == "creator":
+                # Creator has high authority — allow actions that would otherwise be blocked.
+                return True
+
+        return True
+
+    def enforce_action(self, action_text: str, context: Optional[Dict[str, Any]] = None) -> None:
+        """
+        Prüft und wirft RuleViolationError wenn die Aktion nicht erlaubt ist.
+        Admin/Creator kann über context={"actor":"creator"} Ausnahmen gewähren.
+        """
+        allowed = self.is_action_allowed(action_text, context=context)
+        if not allowed:
+            raise RuleViolationError(f"Aktion verweigert durch RuleEngine: '{action_text}'")
+
+    # Keine Methoden, die Regeln während Laufzeit verändern (immutability).
+    # Wenn Admin Regeln ändern will, muss er die config/rules.yaml editieren und System neu starten.

@@ -1,0 +1,57 @@
+#!/usr/bin/env python3
+"""
+admin_console/commands/manage_training.py
+CLI to add training datasets to data/training, list datasets, remove.
+"""
+import argparse, os, shutil, sys
+
+BASE = os.path.normpath(os.path.join(os.path.dirname(__file__), '..', '..', 'data', 'training'))
+
+def ensure():
+    os.makedirs(BASE, exist_ok=True)
+
+def cmd_list(args):
+    ensure()
+    items = os.listdir(BASE)
+    for it in items:
+        print(it)
+
+def cmd_add(args):
+    ensure()
+    src = args.path
+    if not os.path.exists(src):
+        print("Source not found:", src); sys.exit(1)
+    dest = os.path.join(BASE, os.path.basename(src))
+    if os.path.isdir(src):
+        if os.path.exists(dest):
+            print("Destination exists:", dest); sys.exit(1)
+        shutil.copytree(src, dest)
+    else:
+        shutil.copy2(src, dest)
+    print("Added:", dest)
+
+def cmd_remove(args):
+    ensure()
+    target = os.path.join(BASE, args.name)
+    if not os.path.exists(target):
+        print("Not found:", target); sys.exit(1)
+    if os.path.isdir(target):
+        shutil.rmtree(target)
+    else:
+        os.remove(target)
+    print("Removed:", target)
+
+def main():
+    p = argparse.ArgumentParser()
+    sp = p.add_subparsers(dest='cmd')
+    p_list = sp.add_parser('list'); p_list.set_defaults(func=cmd_list)
+    p_add = sp.add_parser('add'); p_add.add_argument('path'); p_add.set_defaults(func=cmd_add)
+    p_rm = sp.add_parser('remove'); p_rm.add_argument('name'); p_rm.set_defaults(func=cmd_remove)
+    args = p.parse_args()
+    if hasattr(args, 'func'):
+        args.func(args)
+    else:
+        p.print_help()
+
+if __name__ == '__main__':
+    main()
