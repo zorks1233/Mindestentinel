@@ -34,7 +34,10 @@ class ModelManager:
         self._load_models_from_directory()
         
         if not self.models:
-            logger.info("Keine Modelle im Ordner gefunden: %s", self.models_dir)
+            logger.warning("Keine Modelle im Ordner gefunden: %s. "
+                          "Bitte füge Modelle hinzu oder erstelle eine model_registry.json. "
+                          "Beispiel: mkdir -p %s/mistral-7b", 
+                          self.models_dir, self.models_dir)
         else:
             logger.info(f"ModelManager initialisiert mit {len(self.models)} Modellen aus {self.models_dir}.")
     

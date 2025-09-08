@@ -106,11 +106,18 @@ class AIBrain:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             self._async_loop = loop
+            
+            # Starte den Hintergrundloop
             loop.run_until_complete(self._bg_loop())
+            
         except Exception:
-            _LOGGER.exception("Fehler im Hintergrundthread.")
+            # Nur loggen, wenn das System noch läuft
+            with self._lock:
+                if self._running:
+                    _LOGGER.exception("Fehler im Hintergrundthread.")
         finally:
             try:
+                # Stelle sicher, dass der Loop sauber geschlossen wird
                 if self._async_loop and not self._async_loop.is_closed():
                     self._async_loop.close()
             except Exception:
@@ -143,6 +150,7 @@ class AIBrain:
 
             # Sleep non-blocking in the async loop
             await asyncio.sleep(self._bg_loop_interval)
+        
         _LOGGER.info("Hintergrund-Loop beendet.")
 
     async def _maybe_trigger_self_learning(self) -> None:

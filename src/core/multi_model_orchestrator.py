@@ -124,3 +124,35 @@ class MultiModelOrchestrator:
                     logger.debug(f"Konnte Temperatur für {model} nicht zurücksetzen: {str(e)}")
         
         return results
+    
+    def query_model(self, model_name: str, prompt: str, **kwargs) -> str:
+        """
+        Fragt ein einzelnes Modell mit einem Prompt ab.
+        
+        Args:
+            model_name: Name des Modells
+            prompt: Der zu verarbeitende Prompt
+            
+        Returns:
+            Die Antwort des Modells
+        """
+        if not self.model_manager:
+            logger.error("Kein ModelManager injiziert. Kann Modell nicht abfragen.")
+            return "Fehler: Kein ModelManager injiziert"
+        
+        try:
+            # Hole die Konfiguration für das Modell
+            config = {}
+            if hasattr(self.model_manager, 'get_model_config'):
+                config = self.model_manager.get_model_config(model_name)
+            
+            # Aktualisiere mit benutzerspezifischen Parametern
+            config.update(kwargs)
+            
+            # Führe die Abfrage durch
+            response = self.model_manager.query_model(model_name, prompt, **config)
+            logger.debug(f"Antwort von {model_name}: {response[:100]}...")
+            return response
+        except Exception as e:
+            logger.error(f"Fehler bei der Abfrage von {model_name}: {str(e)}", exc_info=True)
+            return f"Fehler bei der Abfrage: {str(e)}"

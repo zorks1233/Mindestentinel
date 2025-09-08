@@ -1,3 +1,4 @@
+# src/core/autonomous_loop.py
 """
 autonomous_loop.py
 
@@ -37,12 +38,12 @@ class SystemMonitor: pass
 class AutonomousLoop:
     """
     Der zentrale kognitive Lernzyklus für Mindestentinel.
-
+    
     Dieses Modul orchestriert alle Komponenten der KI, um proaktive Lernzyklen
     durchzuführen und die Systemkapazitäten kontinuierlich zu erweitern.
     """
-
-    def __init__(self,
+    
+    def __init__(self, 
                  ai_engine: 'AIEngine',
                  knowledge_base: 'KnowledgeBase',
                  model_orchestrator: 'MultiModelOrchestrator',
@@ -53,7 +54,7 @@ class AutonomousLoop:
                  config: Dict = None):
         """
         Initialisiert den autonomen Lernzyklus mit allen benötigten Komponenten.
-
+        
         Args:
             ai_engine: Der Haupt-KI-Engine für Entscheidungsfindung
             knowledge_base: Die Wissensdatenbank für Speicherung und Abruf
@@ -71,7 +72,7 @@ class AutonomousLoop:
         self.protection_module = protection_module
         self.model_manager = model_manager
         self.system_monitor = system_monitor
-
+        
         # Standardkonfiguration, kann durch Benutzer überschrieben werden
         self.config = {
             "max_learning_cycles": 100,
@@ -86,10 +87,10 @@ class AutonomousLoop:
             "enable_quantum_processing": False,
             "quantum_processing_threshold": 0.3
         }
-
+        
         if config:
             self.config.update(config)
-
+            
         # Interne Zustandsvariablen
         self.current_cycle = 0
         self.learning_goals = []
@@ -99,13 +100,13 @@ class AutonomousLoop:
         self.active = False
         self.safety_violations = 0
         self.max_safety_violations = 3
-
+        
         logger.info("AutonomousLoop initialisiert. Warte auf Aktivierung...")
-
+    
     def start(self) -> None:
         """
         Startet den autonomen Lernzyklus.
-
+        
         Der Zyklus läuft kontinuierlich im Hintergrund und führt regelmäßig
         Lernzyklen durch, solange die Ressourcen verfügbar sind und keine
         Sicherheitsregeln verletzt werden.
@@ -113,31 +114,38 @@ class AutonomousLoop:
         if self.active:
             logger.warning("AutonomousLoop ist bereits aktiv.")
             return
-
+            
         self.active = True
         self.last_learning_time = time.time()
         logger.info("AutonomousLoop aktiviert. Beginne mit Lernzyklen...")
-
+        
         try:
             while self.active and self.current_cycle < self.config["max_learning_cycles"]:
                 self._run_learning_cycle()
-                time.sleep(max(1, self.config["learning_interval_seconds"] - (time.time() - self.last_learning_time)))
+                # Prüfe vor dem Sleep, ob der Loop noch aktiv ist
+                if not self.active:
+                    break
+                sleep_time = max(1, self.config["learning_interval_seconds"] - (time.time() - self.last_learning_time))
+                time.sleep(sleep_time)
                 self.last_learning_time = time.time()
+        except KeyboardInterrupt:
+            logger.info("KeyboardInterrupt empfangen. Deaktiviere autonomen Lernzyklus...")
+            self.active = False
         except Exception as e:
             logger.error(f"Fehler im autonomen Lernzyklus: {str(e)}", exc_info=True)
             self.stop()
-
+    
     def stop(self) -> None:
         """
         Stoppt den autonomen Lernzyklus.
         """
         self.active = False
         logger.info("AutonomousLoop deaktiviert.")
-
+    
     def _run_learning_cycle(self) -> None:
         """
         Führt einen vollständigen Lernzyklus durch.
-
+        
         Dieser Zyklus besteht aus mehreren Phasen:
         1. Zielgenerierung
         2. Sicherheitsprüfung
@@ -150,45 +158,48 @@ class AutonomousLoop:
         """
         self.current_cycle += 1
         logger.info(f"Beginne Lernzyklus #{self.current_cycle}")
-
+        
         # 1. Zielgenerierung
         new_goals = self._generate_learning_goals()
         if not new_goals:
             logger.info("Keine neuen Lernziele generiert. Überspringe diesen Zyklus.")
             return
-
+            
         self.learning_goals.extend(new_goals)
         logger.info(f"Generierte {len(new_goals)} neue Lernziele")
-
+        
         # 2. Sicherheitsprüfung für alle Ziele
         safe_goals = self._filter_safe_goals(self.learning_goals)
         if not safe_goals:
             logger.warning("Keine sicheren Lernziele gefunden. Abbruch des Lernzyklus.")
             return
-
+            
         # 3. Priorisierung der Ziele
         prioritized_goals = self._prioritize_goals(safe_goals)
-
+        
         # 4. Für jedes Ziel den Lernprozess durchführen
         for goal in prioritized_goals[:3]:  # Maximal 3 Ziele pro Zyklus
+            if not self.active:  # Prüfe vor der Verarbeitung, ob der Loop noch aktiv ist
+                break
+                
             try:
                 logger.info(f"Verarbeite Lernziel: {goal['description']}")
-
+                
                 # Sicherheitsprüfung vor jeder Aktion
                 if not self._check_safety():
                     logger.warning("Sicherheitsprüfung fehlgeschlagen. Unterbreche Lernzyklus.")
                     break
-
+                    
                 # 5. Lernplanung
                 learning_plan = self._create_learning_plan(goal)
-
+                
                 # 6. Wissensakquisition
                 knowledge_samples = self._acquire_knowledge(learning_plan)
-
+                
                 # 7. Wissensverdichtung
                 if knowledge_samples:
                     success = self._distill_knowledge(goal, knowledge_samples)
-
+                    
                     # 8. Evaluierung
                     if success:
                         evaluation = self._evaluate_learning(goal)
@@ -213,22 +224,22 @@ class AutonomousLoop:
                 self.failed_goals.append(goal)
                 if goal in self.learning_goals:
                     self.learning_goals.remove(goal)
-
+        
         # 10. Reflexion
         self._reflect_on_learning_cycle()
-
+        
         logger.info(f"Lernzyklus #{self.current_cycle} abgeschlossen")
-
+    
     def _generate_learning_goals(self) -> List[Dict]:
         """
         Generiert neue Lernziele basierend auf dem aktuellen Wissensstand.
-
+        
         Lernziele können sein:
         - Verständnis neuer Konzepte
         - Verbesserung bestehender Fähigkeiten
         - Integration neuer Datenquellen
         - Optimierung von Prozessen
-
+        
         Returns:
             List[Dict]: Eine Liste von Lernzielen mit Beschreibung, Priorität und Komplexität
         """
@@ -253,16 +264,16 @@ class AutonomousLoop:
                 "created_at": datetime.now().isoformat()
             }
         ]
-
+        
         # Analyse des aktuellen Wissensstands, um spezifische Lücken zu identifizieren
         try:
             knowledge_stats = self.knowledge_base.get_statistics()
-
+            
             # Wenn bestimmte Wissensbereiche unterrepräsentiert sind, Ziele generieren
             if knowledge_stats["total_entries"] > 100:
                 # Prüfe auf Wissenslücken
                 knowledge_gaps = self._identify_knowledge_gaps()
-
+                
                 for gap in knowledge_gaps[:3]:  # Maximal 3 Lücken adressieren
                     base_goals.append({
                         "id": f"gap_goal_{gap['id']}_{int(time.time())}",
@@ -276,7 +287,7 @@ class AutonomousLoop:
                     })
         except Exception as e:
             logger.debug(f"Konnte Wissensstatistiken nicht abrufen: {str(e)}")
-
+        
         # Generiere Ziele basierend auf Systemleistung
         try:
             system_stats = self.system_monitor.get_statistics()
@@ -292,7 +303,7 @@ class AutonomousLoop:
                 })
         except Exception as e:
             logger.debug(f"Konnte Systemstatistiken nicht abrufen: {str(e)}")
-
+        
         # Generiere Ziele basierend auf Benutzerinteraktionen (wenn vorhanden)
         try:
             user_interaction_stats = self.knowledge_base.query("SELECT * FROM user_interactions ORDER BY timestamp DESC LIMIT 10")
@@ -312,13 +323,13 @@ class AutonomousLoop:
                         })
         except Exception as e:
             logger.debug(f"Konnte Benutzerinteraktionen nicht analysieren: {str(e)}")
-
+        
         return base_goals
-
+    
     def _identify_knowledge_gaps(self) -> List[Dict]:
         """
         Identifiziert Wissenslücken durch Analyse der bestehenden Wissensdatenbank.
-
+        
         Returns:
             List[Dict]: Eine Liste von identifizierten Wissenslücken
         """
@@ -329,21 +340,21 @@ class AutonomousLoop:
             {"id": "gap_002", "concept": "Neuronale Netzoptimierung", "priority": 3, "complexity": 3},
             {"id": "gap_003", "concept": "Ethik in autonomen Systemen", "priority": 5, "complexity": 2}
         ]
-
+    
     def _analyze_user_interaction_topics(self, interactions: List[Dict]) -> Any:
         """
         Analysiert Benutzerinteraktionen, um häufige Themen zu identifizieren.
-
+        
         Args:
             interactions: Liste der neuesten Benutzerinteraktionen
-
+            
         Returns:
             Ein Counter-Objekt mit Themen und Häufigkeiten
         """
         # Stub-Implementierung - in der Realität würde dies NLP verwenden
         from collections import Counter
         topics = Counter()
-
+        
         for interaction in interactions:
             # Extrahiere Schlüsselwörter (Stub)
             if "quantum" in interaction.get("query", "").lower():
@@ -352,21 +363,21 @@ class AutonomousLoop:
                 topics["optimization"] += 1
             if "security" in interaction.get("query", "").lower() or "safety" in interaction.get("query", "").lower():
                 topics["security"] += 1
-
+                
         return topics
-
+    
     def _filter_safe_goals(self, goals: List[Dict]) -> List[Dict]:
         """
         Filtert Lernziele basierend auf Sicherheitsregeln.
-
+        
         Args:
             goals: Liste von Lernzielen
-
+            
         Returns:
             List[Dict]: Nur die sicheren Lernziele
         """
         safe_goals = []
-
+        
         for goal in goals:
             # Sicherheitsprüfung durchführen
             safety_check = self.rule_engine.check_rule_compliance({
@@ -374,35 +385,35 @@ class AutonomousLoop:
                 "target": goal["description"],
                 "category": goal.get("category", "general")
             })
-
+            
             if safety_check["compliant"]:
                 safe_goals.append(goal)
             else:
                 logger.warning(f"Lernziel blockiert durch Sicherheitsregeln: {goal['description']}")
                 logger.debug(f"Verletzte Regeln: {safety_check['violated_rules']}")
-
+        
         return safe_goals
-
+    
     def _prioritize_goals(self, goals: List[Dict]) -> List[Dict]:
         """
         Priorisiert Lernziele basierend auf verschiedenen Faktoren.
-
+        
         Args:
             goals: Liste von Lernzielen
-
+            
         Returns:
             List[Dict]: Priorisierte Liste von Lernzielen
         """
         # Sortiere nach Priorität (absteigend), dann nach Komplexität (aufsteigend)
         return sorted(goals, key=lambda x: (-x["priority"], x["complexity"]))
-
+    
     def _create_learning_plan(self, goal: Dict) -> Dict:
         """
         Erstellt einen detaillierten Lernplan für ein spezifisches Ziel.
-
+        
         Args:
             goal: Das Lernziel
-
+            
         Returns:
             Dict: Ein detaillierter Lernplan
         """
@@ -441,37 +452,37 @@ class AutonomousLoop:
                 "Praktische Anwendbarkeit"
             ]
         }
-
+    
     def _acquire_knowledge(self, learning_plan: Dict) -> List[Dict]:
         """
         Führt die Wissensakquisition durch Interaktion mit Lehrer-Modellen durch.
-
+        
         Args:
             learning_plan: Der Lernplan für das aktuelle Ziel
-
+            
         Returns:
             List[Dict]: Gesammelte Wissensbeispiele
         """
         knowledge_samples = []
-
+        
         # Verwende den Multi-Model-Orchestrator, um Informationen von verschiedenen Modellen zu sammeln
         for step in learning_plan["steps"]:
             if step["id"] == "research":
                 # Frage Lehrer-Modelle nach Informationen zum Ziel
                 goal_id = learning_plan["goal_id"]
                 goal = next((g for g in self.learning_goals if g["id"] == goal_id), None)
-
+                
                 if goal:
                     # Erstelle eine präzise Anfrage basierend auf dem Lernziel
                     query = self._create_knowledge_query(goal)
-
+                    
                     # Hole Antworten von verschiedenen Modellen
                     responses = self.model_orchestrator.query_teacher_models(
                         query,
                         num_responses=3,
                         temperature=0.3
                     )
-
+                    
                     # Verarbeite die Antworten
                     for model_name, response in responses.items():
                         knowledge_samples.append({
@@ -481,16 +492,16 @@ class AutonomousLoop:
                             "timestamp": datetime.now().isoformat(),
                             "source": "teacher_model"
                         })
-
+        
         return knowledge_samples
-
+    
     def _create_knowledge_query(self, goal: Dict) -> str:
         """
         Erstellt eine präzise Anfrage für die Wissensakquisition basierend auf dem Lernziel.
-
+        
         Args:
             goal: Das Lernziel
-
+            
         Returns:
             str: Eine präzise Anfrage
         """
@@ -500,46 +511,46 @@ class AutonomousLoop:
             "knowledge": "Was ist {concept}? Erkläre es so, dass jemand mit Grundkenntnissen es verstehen kann. Gib Beispiele und zeige, wie es mit bereits bekanntem Wissen verbunden ist.",
             "user_experience": "Wie kann die Benutzererfahrung bei der Interaktion mit {topic} verbessert werden? Beschreibe konkrete Maßnahmen, ihre erwarteten Auswirkungen und wie sie gemessen werden können."
         }
-
+        
         category = goal.get("category", "knowledge")
         concept = goal["description"].split(" ")[-1]  # Einfache Extraktion für den Stub
-
+        
         template = base_queries.get(category, base_queries["knowledge"])
         return template.format(concept=concept, process=concept, topic=concept)
-
+    
     def _distill_knowledge(self, goal: Dict, knowledge_samples: List[Dict]) -> bool:
         """
         Führt Knowledge Distillation durch, um ein lokales Modell zu verbessern.
-
+        
         Args:
             goal: Das Lernziel
             knowledge_samples: Gesammelte Wissensbeispiele
-
+            
         Returns:
             bool: True, wenn die Distillation erfolgreich war
         """
         if not knowledge_samples:
             return False
-
+            
         try:
             # Erstelle ein Trainingset aus den Wissensbeispielen
             training_data = self._prepare_training_data(knowledge_samples)
-
+            
             # Wähle das passende lokale Modell für die Feinabstimmung
             model_name = self.model_manager.get_best_model_for_category(goal.get("category", "general"))
-
+            
             if not model_name:
                 logger.warning("Kein passendes lokales Modell gefunden für die Distillation")
                 return False
-
+                
             # Führe Feinabstimmung durch (Stub - würde in Realität LoRA/QLoRA verwenden)
             logger.info(f"Führe Knowledge Distillation durch für Modell {model_name}")
-
+            
             # In einer echten Implementierung würde hier das Training erfolgen
             # Für diesen Stub simulieren wir den Erfolg basierend auf Zufall und Komplexität
             success_chance = 0.8 - (goal["complexity"] * 0.1)
             success = random.random() < success_chance
-
+            
             if success:
                 # Simuliere Verbesserung des Modells
                 improvement = {
@@ -548,32 +559,32 @@ class AutonomousLoop:
                     "improvement_score": random.uniform(0.1, 0.5),
                     "timestamp": datetime.now().isoformat()
                 }
-
+                
                 # Speichere die Verbesserung
                 self.knowledge_base.store("model_improvements", improvement)
-
+                
                 logger.info(f"Knowledge Distillation erfolgreich für Ziel {goal['id']}")
                 return True
             else:
                 logger.warning(f"Knowledge Distillation fehlgeschlagen für Ziel {goal['id']}")
                 return False
-
+                
         except Exception as e:
             logger.error(f"Fehler bei Knowledge Distillation: {str(e)}", exc_info=True)
             return False
-
+    
     def _prepare_training_data(self, knowledge_samples: List[Dict]) -> List[Dict]:
         """
         Bereitet die Trainingsdaten für die Knowledge Distillation vor.
-
+        
         Args:
             knowledge_samples: Gesammelte Wissensbeispiele
-
+            
         Returns:
             List[Dict]: Vorbereitete Trainingsdaten
         """
         training_data = []
-
+        
         for sample in knowledge_samples:
             # Extrahiere Input-Output-Paare
             training_data.append({
@@ -582,7 +593,7 @@ class AutonomousLoop:
                 "source": sample["model"],
                 "quality_score": 0.8  # In Realität würde dies bewertet
             })
-
+            
             # Erstelle auch Varianten durch Paraphrasierung (Stub)
             if random.random() > 0.7:
                 training_data.append({
@@ -591,35 +602,35 @@ class AutonomousLoop:
                     "source": "paraphrased",
                     "quality_score": 0.6
                 })
-
+        
         return training_data
-
+    
     def _evaluate_learning(self, goal: Dict) -> Dict:
         """
         Evaluiert, ob das Lernziel erreicht wurde.
-
+        
         Args:
             goal: Das Lernziel
-
+            
         Returns:
             Dict: Evaluierungsergebnis mit Erfolgsstatus und Metriken
         """
         # In einer echten Implementierung würde dies umfassende Tests durchführen
         # Für diesen Stub simulieren wir die Evaluierung
-
+        
         # Hole das verbesserte Modell
         model_name = self.model_manager.get_best_model_for_category(goal.get("category", "general"))
         if not model_name:
             return {"success": False, "reason": "Kein Modell verfügbar"}
-
+            
         # Führe Evaluierungsfragen durch
         evaluation_questions = self._generate_evaluation_questions(goal)
         results = []
-
+        
         for question in evaluation_questions:
             # Hole Antwort vom Modell
             response = self.model_orchestrator.query_model(model_name, question, temperature=0.1)
-
+            
             # Bewerte die Antwort (Stub - würde in Realität komplexere Metriken verwenden)
             quality = self._evaluate_response_quality(question, response, goal)
             results.append({
@@ -628,11 +639,11 @@ class AutonomousLoop:
                 "quality_score": quality,
                 "timestamp": datetime.now().isoformat()
             })
-
+        
         # Berechne Gesamterfolg
         avg_quality = sum(r["quality_score"] for r in results) / len(results)
         success = avg_quality >= self.config["min_confidence_threshold"]
-
+        
         # Speichere Evaluierung
         evaluation_record = {
             "goal_id": goal["id"],
@@ -643,21 +654,21 @@ class AutonomousLoop:
             "timestamp": datetime.now().isoformat()
         }
         self.knowledge_base.store("learning_evaluations", evaluation_record)
-
+        
         return {
             "success": success,
             "average_quality": avg_quality,
             "evaluation_questions": evaluation_questions,
             "detailed_results": results
         }
-
+    
     def _generate_evaluation_questions(self, goal: Dict) -> List[str]:
         """
         Generiert Evaluierungsfragen für ein Lernziel.
-
+        
         Args:
             goal: Das Lernziel
-
+            
         Returns:
             List[str]: Liste von Evaluierungsfragen
         """
@@ -683,61 +694,61 @@ class AutonomousLoop:
                 "Wie würdest du die Lösung für diesen Benutzer anpassen?"
             ]
         }
-
+        
         return base_questions.get(goal.get("category", "knowledge"), base_questions["knowledge"])
-
+    
     def _evaluate_response_quality(self, question: str, response: str, goal: Dict) -> float:
         """
         Bewertet die Qualität einer Antwort auf eine Evaluierungsfrage.
-
+        
         Args:
             question: Die gestellte Frage
             response: Die gegebene Antwort
             goal: Das Lernziel
-
+            
         Returns:
             float: Qualitätsbewertung zwischen 0 und 1
         """
         # In einer echten Implementierung würde dies NLP-Metriken verwenden
         # Für diesen Stub verwenden wir einfache Heuristiken
-
+        
         # Basisbewertung basierend auf Antwortlänge und Komplexität
         base_score = min(1.0, len(response) / 100)
-
+        
         # Prüfe auf Schlüsselwörter
         concept = goal["description"].split(" ")[-1].lower()
         if concept in response.lower():
             base_score += 0.2
-
+            
         # Zufällige Variation für Realismus
         variation = random.uniform(-0.1, 0.1)
-
+        
         # Stelle sicher, dass die Bewertung im Bereich [0,1] bleibt
         final_score = max(0.0, min(1.0, base_score + variation))
-
+        
         return final_score
-
+    
     def _integrate_new_knowledge(self, goal: Dict, evaluation: Dict) -> None:
         """
         Integriert neues Wissen in die Systemkomponenten.
-
+        
         Args:
             goal: Das abgeschlossene Lernziel
             evaluation: Das Evaluierungsergebnis
         """
         # 1. Aktualisiere die Wissensdatenbank
         self._update_knowledge_base(goal, evaluation)
-
+        
         # 2. Aktualisiere die Modelle
         self._update_models(goal, evaluation)
-
+        
         # 3. Dokumentiere den Lernprozess
         self._document_learning_process(goal, evaluation)
-
+    
     def _update_knowledge_base(self, goal: Dict, evaluation: Dict) -> None:
         """
         Aktualisiert die Wissensdatenbank mit neuem Wissen.
-
+        
         Args:
             goal: Das abgeschlossene Lernziel
             evaluation: Das Evaluierungsergebnis
@@ -752,7 +763,7 @@ class AutonomousLoop:
                 "answer": result["response"],
                 "quality": result["quality_score"]
             })
-
+        
         # Erstelle einen Wissenseintrag
         knowledge_entry = {
             "title": f"Lernziel: {goal['description']}",
@@ -763,22 +774,22 @@ class AutonomousLoop:
             "timestamp": datetime.now().isoformat(),
             "learning_cycle": self.current_cycle
         }
-
+        
         # Speichere in der Wissensdatenbank
         self.knowledge_base.store("knowledge_entries", knowledge_entry)
         logger.info(f"Wissensdatenbank aktualisiert mit neuen Erkenntnissen für Ziel {goal['id']}")
-
+    
     def _update_models(self, goal: Dict, evaluation: Dict) -> None:
         """
         Aktualisiert die Modelle basierend auf neuem Wissen.
-
+        
         Args:
             goal: Das abgeschlossene Lernziel
             evaluation: Das Evaluierungsergebnis
         """
         # In einer echten Implementierung würde dies Modelle speichern und ggf. Quantisierung durchführen
         # Für diesen Stub aktualisieren wir nur Metadaten
-
+        
         model_name = self.model_manager.get_best_model_for_category(goal.get("category", "general"))
         if model_name:
             # Aktualisiere Modellmetadaten
@@ -791,11 +802,11 @@ class AutonomousLoop:
                 }
             )
             logger.info(f"Modellmetadaten aktualisiert für {model_name}")
-
+    
     def _document_learning_process(self, goal: Dict, evaluation: Dict) -> None:
         """
         Dokumentiert den gesamten Lernprozess für Nachvollziehbarkeit.
-
+        
         Args:
             goal: Das abgeschlossene Lernziel
             evaluation: Das Evaluierungsergebnis
@@ -807,23 +818,23 @@ class AutonomousLoop:
             "cycle": self.current_cycle,
             "resource_usage": self.system_monitor.get_statistics()["resource_usage"]
         }
-
+        
         # Speichere die Lernhistorie
         self.knowledge_base.store("learning_history", learning_record)
         logger.info(f"Lernprozess dokumentiert für Ziel {goal['id']}")
-
+    
     def _reflect_on_learning_cycle(self) -> None:
         """
         Führt eine Reflexion über den abgeschlossenen Lernzyklus durch.
-
+        
         Dies verbessert die zukünftige Lernstrategie basierend auf Erfahrungen.
         """
         # Analysiere den Erfolg der Lernziele
         success_rate = len(self.completed_goals) / max(1, len(self.completed_goals) + len(self.failed_goals))
-
+        
         # Aktualisiere die Lernstrategie basierend auf dem Erfolg
         self._adjust_learning_strategy(success_rate)
-
+        
         # Dokumentiere die Reflexion
         reflection = {
             "cycle": self.current_cycle,
@@ -832,14 +843,14 @@ class AutonomousLoop:
             "failed_goals": len(self.failed_goals),
             "timestamp": datetime.now().isoformat()
         }
-
+        
         self.knowledge_base.store("learning_reflections", reflection)
         logger.info(f"Reflexion abgeschlossen für Lernzyklus #{self.current_cycle}. Erfolgsquote: {success_rate:.2f}")
-
+    
     def _adjust_learning_strategy(self, success_rate: float) -> None:
         """
         Passt die Lernstrategie basierend auf der Erfolgsquote an.
-
+        
         Args:
             success_rate: Die aktuelle Erfolgsquote
         """
@@ -847,20 +858,20 @@ class AutonomousLoop:
         if success_rate > 0.7:
             self.config["max_goal_complexity"] = min(5, self.config["max_goal_complexity"] + 1)
             self.config["learning_interval_seconds"] = max(600, self.config["learning_interval_seconds"] - 300)
-
+        
         # Wenn Erfolgsquote niedrig ist, vorsichtiger werden
         elif success_rate < 0.3:
             self.config["max_goal_complexity"] = max(1, self.config["max_goal_complexity"] - 1)
             self.config["learning_interval_seconds"] = min(7200, self.config["learning_interval_seconds"] + 600)
             self.config["distillation_batch_size"] = max(4, self.config["distillation_batch_size"] - 2)
-
+        
         logger.debug(f"Anpassung der Lernstrategie: Neue Komplexitätsgrenze {self.config['max_goal_complexity']}, "
                     f"neues Intervall {self.config['learning_interval_seconds']}s")
-
+    
     def _check_safety(self) -> bool:
         """
         Führt eine umfassende Sicherheitsprüfung durch.
-
+        
         Returns:
             bool: True, wenn alle Sicherheitschecks bestanden wurden
         """
@@ -874,23 +885,23 @@ class AutonomousLoop:
                     logger.critical("Zu viele Sicherheitsverletzungen. Deaktiviere autonome Lernzyklen.")
                     self.stop()
                     return False
-
+            
             # Prüfe, ob die Ressourcennutzung im sicheren Bereich liegt
             try:
                 resource_usage = self.system_monitor.get_statistics()["resource_usage"]
-                if (resource_usage["cpu"] > self.config["max_resource_usage"] or
+                if (resource_usage["cpu"] > self.config["max_resource_usage"] or 
                     resource_usage["memory"] > self.config["max_resource_usage"]):
                     logger.warning("Hohe Ressourcennutzung erkannt. Unterbreche Lernzyklus.")
                     return False
             except Exception as e:
                 logger.debug(f"Konnte Ressourcennutzung nicht abrufen: {str(e)}")
-
+        
         return True
-
+    
     def get_status(self) -> Dict:
         """
         Gibt den aktuellen Status des autonomen Lernzyklus zurück.
-
+        
         Returns:
             Dict: Statusinformationen
         """

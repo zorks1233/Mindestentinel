@@ -19,6 +19,8 @@ import platform
 import os
 import logging
 import uvicorn
+import threading
+import time
 from typing import Optional, Tuple
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning, message="pkg_resources is deprecated")
@@ -166,14 +168,11 @@ def main(argv=None):
     brain.start()
     
     # Starte den autonomen Lernzyklus, wenn aktiviert und erfolgreich initialisiert
+    autonomy_thread = None
     if args.enable_autonomy and autonomous_loop is not None:
         _LOG.info("Aktiviere autonomen Lernzyklus...")
-        autonomous_loop.start()
-    elif args.enable_autonomy and autonomous_loop is None:
-        _LOG.error("Autonomer Lernzyklus konnte nicht aktiviert werden. Starte ohne Autonomie.")
-    elif autonomous_loop is not None:
-        # Autonomie ist nicht gewünscht, aber der Loop wurde initialisiert - stoppe ihn
-        _LOG.info("Autonomer Lernzyklus initialisiert, aber nicht aktiviert. Halte bereit für spätere Aktivierung.")
+        autonomy_thread = threading.Thread(target=autonomous_loop.start, daemon=True)
+        autonomy_thread.start()
     
     if args.no_start:
         _LOG.info("System initialisiert (no-start). AIBrain läuft im Hintergrund. Exit.")
@@ -182,25 +181,49 @@ def main(argv=None):
     if args.start_rest:
         app = create_app(brain, mm, pm)
         _LOG.info("Starting REST API on %s:%d", args.api_host, args.api_port)
-        uvicorn.run(app, host=args.api_host, port=args.api_port)
+        # Starte die REST API in einem separaten Thread, damit wir auf KeyboardInterrupt reagieren können
+        api_thread = threading.Thread(target=uvicorn.run, args=(app,), kwargs={"host": args.api_host, "port": args.api_port}, daemon=True)
+        api_thread.start()
     elif args.start_ws:
         app = create_ws_app(brain)
         _LOG.info("Starting WebSocket API on %s:%d", args.api_host, args.api_port)
-        uvicorn.run(app, host=args.api_host, port=args.api_port)
+        # Starte die WebSocket API in einem separaten Thread
+        api_thread = threading.Thread(target=uvicorn.run, args=(app,), kwargs={"host": args.api_host, "port": args.api_port}, daemon=True)
+        api_thread.start()
     else:
         _LOG.info("No API selected. Running in background. Use --start-rest or --start-ws to start servers.")
-        try:
-            while True:
-                # Halte Hauptthread am Leben, während das Gehirn im Hintergrund läuft
-                import time
-                time.sleep(3600)
-        except KeyboardInterrupt:
-            _LOG.info("Received KeyboardInterrupt. Shutting down.")
-            # Stoppe den autonomen Lernzyklus, wenn aktiv
-            if args.enable_autonomy and autonomous_loop is not None:
-                _LOG.info("Deaktiviere autonomen Lernzyklus...")
-                autonomous_loop.stop()
-            brain.stop()
+        api_thread = None
+    
+    # Haupt-Loop für das Warten auf Beendigung
+    try:
+        while True:
+            # Prüfe, ob der autonome Lernzyklus noch läuft
+            if autonomy_thread and not autonomy_thread.is_alive():
+                _LOG.info("Autonomer Lernzyklus beendet. Stoppe System.")
+                break
+                
+            # Prüfe, ob die API-Threads noch laufen (falls gestartet)
+            if api_thread and not api_thread.is_alive():
+                _LOG.info("API-Server beendet. Stoppe System.")
+                break
+                
+            # Warte kurz, bevor wir erneut prüfen
+            time.sleep(1)
+    except KeyboardInterrupt:
+        _LOG.info("Received KeyboardInterrupt. Shutting down.")
+    
+    # Stoppe den autonomen Lernzyklus, wenn aktiv
+    if args.enable_autonomy and autonomous_loop is not None and autonomous_loop.active:
+        _LOG.info("Deaktiviere autonomen Lernzyklus...")
+        autonomous_loop.stop()
+        # Warte kurz, bis der Loop beendet ist
+        if autonomy_thread:
+            autonomy_thread.join(timeout=5.0)
+    
+    # Stoppe das Gehirn
+    brain.stop()
+    
+    _LOG.info("System shutdown complete.")
 
 if __name__ == "__main__":
     try:
