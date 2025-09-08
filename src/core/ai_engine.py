@@ -1,4 +1,3 @@
-# ai_engine 
 # src/core/ai_engine.py
 """
 AIBrain / AI Engine - Orchestrator für Mindestentinel
@@ -21,6 +20,7 @@ from src.core.knowledge_base import KnowledgeBase
 from src.core.self_learning import SelfLearning
 from src.core.multi_model_orchestrator import MultiModelOrchestrator
 from src.core.system_monitor import SystemMonitor
+from src.core.model_manager import ModelManager
 
 _LOGGER = logging.getLogger("mindestentinel.ai_engine")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -38,7 +38,7 @@ class AIBrain:
         self.protection = ProtectionModule(self.rule_engine)
         self.knowledge_base = KnowledgeBase()
         self.self_learning = SelfLearning(self.knowledge_base)
-        self.multi_orchestrator = MultiModelOrchestrator(model_manager=None)  # model_manager wird später injiziert
+        self.multi_orchestrator = MultiModelOrchestrator()  # model_manager wird später injiziert
         self.system_monitor = SystemMonitor()
 
         # Laufzeit / Lifecycle
@@ -55,12 +55,12 @@ class AIBrain:
 
         _LOGGER.info("AIBrain initialisiert.")
 
-    def inject_model_manager(self, model_manager) -> None:
+    def inject_model_manager(self, model_manager: ModelManager) -> None:
         """
         Injiziere model_manager (z.B. zur Laufzeit, sobald dieser verfügbar ist).
         """
         with self._lock:
-            self.multi_orchestrator.model_manager = model_manager
+            self.multi_orchestrator.inject_model_manager(model_manager)
             _LOGGER.info("Model manager injiziert in MultiModelOrchestrator.")
 
     def start(self) -> None:
@@ -240,4 +240,3 @@ class AIBrain:
         if hasattr(self.self_learning, "register_plugin"):
             self.self_learning.register_plugin(plugin_obj)
         _LOGGER.info("Plugin '%s' registriert.", getattr(plugin_obj, "name", "<unknown>"))
-

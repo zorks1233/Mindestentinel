@@ -1,74 +1,231 @@
-# knowledge_base 
 # src/core/knowledge_base.py
 """
-KnowledgeBase - SQLite-basierte persistente Ablage für Texte/Artefakte.
-- Tabellen: facts (key, value, ts)
-- Methoden: store, query (simple LIKE), search (returns list), count_all, persist
+KnowledgeBase - Verwaltet die Wissensdatenbank des Systems
 """
 
-from __future__ import annotations
+import logging
 import sqlite3
-import threading
-import time
-import os
-from typing import List, Optional
+import json
+from datetime import datetime
+from pathlib import Path
+from typing import Dict, Any, List, Optional, Union
 
-DB_PATH_DEFAULT = os.path.join(os.getcwd(), "data", "knowledge", "kb.sqlite3")
+logger = logging.getLogger(__name__)
 
 class KnowledgeBase:
-    def __init__(self, db_path: Optional[str] = None):
-        self.db_path = db_path or DB_PATH_DEFAULT
-        os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
-        self._lock = threading.RLock()
+    """
+    Verwaltet die Wissensdatenbank des Systems.
+    Speichert Fakten, Interaktionen und Metadaten in einer SQLite-Datenbank.
+    """
+    
+    def __init__(self, db_path: str = "data/knowledge/knowledge.db"):
+        """
+        Initialisiert die Wissensdatenbank.
+        
+        Args:
+            db_path: Pfad zur SQLite-Datenbank
+        """
+        self.db_path = Path(db_path)
+        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        # Initialisiere die Datenbank
         self._init_db()
-
+        logger.info(f"Wissensdatenbank initialisiert: {self.db_path}")
+    
     def _init_db(self):
-        with sqlite3.connect(self.db_path) as conn:
-            cur = conn.cursor()
-            cur.execute("""
+        """Initialisiert die Datenbankstruktur"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                
+                # Tabelle für Fakten
+                cursor.execute("""
                 CREATE TABLE IF NOT EXISTS facts (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    source TEXT,
-                    content TEXT,
-                    ts INTEGER
+                    source TEXT NOT NULL,
+                    content TEXT NOT NULL,
+                    ts TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
-            """)
-            conn.commit()
-
-    def store(self, source: str, content: str) -> int:
-        """Speichert content mit Quellennennung. Gibt die erzeugte ID zurück."""
-        ts = int(time.time())
-        with self._lock, sqlite3.connect(self.db_path) as conn:
-            cur = conn.cursor()
-            cur.execute("INSERT INTO facts (source, content, ts) VALUES (?, ?, ?)", (source, content, ts))
-            conn.commit()
-            return cur.lastrowid
-
-    def query(self, query_text: str, limit: int = 50) -> List[str]:
-        """Einfache Volltext-ähnliche Suche (LIKE)."""
-        like = f"%{query_text}%"
-        with self._lock, sqlite3.connect(self.db_path) as conn:
-            cur = conn.cursor()
-            cur.execute("SELECT content FROM facts WHERE content LIKE ? ORDER BY ts DESC LIMIT ?", (like, limit))
-            rows = cur.fetchall()
-            return [r[0] for r in rows]
-
-    def search(self, source: str, limit: int = 100) -> List[str]:
-        """Gibt Inhalte einer bestimmten Quelle zurück (z. B. 'self_learning')."""
-        with self._lock, sqlite3.connect(self.db_path) as conn:
-            cur = conn.cursor()
-            cur.execute("SELECT content FROM facts WHERE source = ? ORDER BY ts DESC LIMIT ?", (source, limit))
-            rows = cur.fetchall()
-            return [r[0] for r in rows]
-
-    def count_all(self) -> int:
-        with self._lock, sqlite3.connect(self.db_path) as conn:
-            cur = conn.cursor()
-            cur.execute("SELECT COUNT(1) FROM facts")
-            r = cur.fetchone()
-            return int(r[0]) if r else 0
-
-    def persist(self) -> None:
-        """Operation für explizite Persistenz/Flush (hier kein-op, DB ist persistent)."""
-        # kept for compatibility with ai_engine background loop
-        return
+                """)
+                
+                # Tabelle für Benutzerinteraktionen
+                cursor.execute("""
+                CREATE TABLE IF NOT EXISTS user_interactions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id TEXT NOT NULL,
+                    query TEXT NOT NULL,
+                    response TEXT NOT NULL,
+                    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+                """)
+                
+                # Tabelle für Metadaten
+                cursor.execute("""
+                CREATE TABLE IF NOT EXISTS metadata (
+                    key TEXT PRIMARY KEY,
+                    value TEXT NOT NULL
+                )
+                """)
+                
+                # Initialisiere Versionsnummer
+                cursor.execute("""
+                INSERT OR IGNORE INTO metadata (key, value) VALUES ('version', '1.0')
+                """)
+                
+                conn.commit()
+                logger.debug("Datenbankstruktur initialisiert")
+        except Exception as e:
+            logger.error(f"Fehler bei der Initialisierung der Datenbank: {str(e)}", exc_info=True)
+            raise
+    
+    def store(self, source: str, content: Any, ts: Optional[str] = None):
+        """
+        Speichert einen Eintrag in der Wissensdatenbank.
+        
+        Args:
+            source: Quelle des Eintrags
+            content: Inhalt (wird als JSON serialisiert, wenn es ein Dict ist)
+            ts: Optionale Zeitstempel
+        """
+        # Serialisiere Dictionaries als JSON
+        if isinstance(content, dict) or isinstance(content, list):
+            content = json.dumps(content)
+        elif not isinstance(content, str):
+            content = str(content)
+        
+        # Verwende aktuellen Zeitstempel, falls keiner angegeben
+        if ts is None:
+            ts = datetime.now().isoformat()
+        
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "INSERT INTO facts (source, content, ts) VALUES (?, ?, ?)",
+                    (source, content, ts)
+                )
+                conn.commit()
+                logger.debug(f"Eintrag gespeichert: {source} ({len(content)} Zeichen)")
+        except Exception as e:
+            logger.error(f"Fehler beim Speichern des Eintrags: {str(e)}", exc_info=True)
+            raise
+    
+    def query(self, sql: str, params: Optional[tuple] = None) -> List[Dict[str, Any]]:
+        """
+        Führt eine SQL-Abfrage aus und gibt die Ergebnisse als Liste von Dictionaries zurück.
+        
+        Args:
+            sql: Die SQL-Abfrage
+            params: Optionale Parameter für die Abfrage
+            
+        Returns:
+            Liste von Dictionaries mit den Ergebnissen
+        """
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                
+                if params:
+                    cursor.execute(sql, params)
+                else:
+                    cursor.execute(sql)
+                
+                rows = cursor.fetchall()
+                return [dict(row) for row in rows]
+        except Exception as e:
+            logger.error(f"Fehler bei der Abfrage: {str(e)}\nSQL: {sql}", exc_info=True)
+            return []
+    
+    def get_statistics(self) -> Dict[str, Any]:
+        """
+        Gibt Statistiken über die Wissensdatenbank zurück.
+        
+        Returns:
+            Dictionary mit Statistiken
+        """
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                
+                # Gesamtanzahl der Einträge
+                cursor.execute("SELECT COUNT(*) as count FROM facts")
+                total_entries = cursor.fetchone()[0]
+                
+                # Anzahl der Einträge pro Quelle
+                cursor.execute("SELECT source, COUNT(*) as count FROM facts GROUP BY source")
+                source_counts = {row[0]: row[1] for row in cursor.fetchall()}
+                
+                # Letzte Aktualisierung
+                cursor.execute("SELECT MAX(ts) as last_update FROM facts")
+                last_update = cursor.fetchone()[0]
+                
+                return {
+                    "total_entries": total_entries,
+                    "entries_by_source": source_counts,
+                    "last_update": last_update
+                }
+        except Exception as e:
+            logger.error(f"Fehler bei der Statistikabfrage: {str(e)}", exc_info=True)
+            return {
+                "total_entries": 0,
+                "entries_by_source": {},
+                "last_update": None
+            }
+    
+    def store_interaction(self, user_id: str, query: str, response: str):
+        """
+        Speichert eine Benutzerinteraktion.
+        
+        Args:
+            user_id: ID des Benutzers
+            query: Benutzeranfrage
+            response: Systemantwort
+        """
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "INSERT INTO user_interactions (user_id, query, response) VALUES (?, ?, ?)",
+                    (user_id, query, response)
+                )
+                conn.commit()
+                logger.debug(f"Benutzerinteraktion gespeichert: {user_id}")
+        except Exception as e:
+            logger.error(f"Fehler beim Speichern der Benutzerinteraktion: {str(e)}", exc_info=True)
+    
+    def get_recent_interactions(self, user_id: Optional[str] = None, limit: int = 10) -> List[Dict[str, Any]]:
+        """
+        Gibt die neuesten Benutzerinteraktionen zurück.
+        
+        Args:
+            user_id: Optionale Benutzer-ID zur Filterung
+            limit: Maximale Anzahl der zurückzugebenden Interaktionen
+            
+        Returns:
+            Liste von Interaktionen
+        """
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                
+                if user_id:
+                    cursor.execute(
+                        "SELECT * FROM user_interactions WHERE user_id = ? ORDER BY timestamp DESC LIMIT ?",
+                        (user_id, limit)
+                    )
+                else:
+                    cursor.execute(
+                        "SELECT * FROM user_interactions ORDER BY timestamp DESC LIMIT ?",
+                        (limit,)
+                    )
+                
+                return [dict(row) for row in cursor.fetchall()]
+        except Exception as e:
+            logger.error(f"Fehler bei der Abfrage von Benutzerinteraktionen: {str(e)}", exc_info=True)
+            return []
+    
+    def persist(self):
+        """Führt eine persistente Speicherung durch (hier noop, da SQLite bereits persistiert)"""
+        logger.debug("Wissensdatenbank persistiert (noop)")

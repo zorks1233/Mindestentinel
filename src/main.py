@@ -20,11 +20,12 @@ import os
 import logging
 import uvicorn
 from typing import Optional, Tuple
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning, message="pkg_resources is deprecated")
 
 # Import des AutonomousLoop Moduls
 try:
     from src.core.autonomous_loop import AutonomousLoop
-
     AUTONOMY_AVAILABLE = True
 except ImportError as e:
     logging.warning(f"AutonomousLoop konnte nicht importiert werden: {str(e)}")
@@ -44,59 +45,69 @@ from src.api.websocket_api import create_ws_app
 _LOG = logging.getLogger("mindestentinel.main")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
-
-def build_components(rules_path: Optional[str] = None, enable_autonomy: bool = False) -> Tuple[
-    AIBrain, ModelManager, PluginManager, Optional['AutonomousLoop']]:
+def build_components(rules_path: Optional[str] = None, enable_autonomy: bool = False) -> Tuple[AIBrain, ModelManager, PluginManager, Optional['AutonomousLoop']]:
     """
     Initialisiert alle Systemkomponenten
-
+    
     Args:
         rules_path: Pfad zur Regelkonfiguration
         enable_autonomy: Gibt an, ob der autonome Lernzyklus benötigt wird
-
+        
     Returns:
         Tupel mit (brain, model_manager, plugin_manager, autonomous_loop)
         Der letzte Wert ist None, wenn enable_autonomy=False oder nicht verfügbar
     """
     mm = ModelManager()
     pm = PluginManager()
-
+    
     # Initialisiere die RuleEngine ZUERST, da sie von mehreren Komponenten benötigt wird
     rule_engine = RuleEngine(rules_path or os.path.join("config", "rules.yaml"))
-
+    
     # Initialisiere das AIBrain mit der Regelkonfiguration
     brain = AIBrain(rules_path or os.path.join("config", "rules.yaml"))
-
+    
     # inject model manager
     brain.inject_model_manager(mm)
-
+    
     # Stelle sicher, dass alle benötigten Komponenten im Brain sind
     # Erstelle sie, falls nicht vorhanden
     if not hasattr(brain, 'knowledge_base') or brain.knowledge_base is None:
         _LOG.info("knowledge_base nicht in AIBrain gefunden - initialisiere neu")
         brain.knowledge_base = KnowledgeBase()
-
+    
     if not hasattr(brain, 'model_orchestrator') or brain.model_orchestrator is None:
         _LOG.info("model_orchestrator nicht in AIBrain gefunden - initialisiere neu")
         brain.model_orchestrator = MultiModelOrchestrator()
-
+        # WICHTIG: Injiziere den model_manager auch in den neu erstellten Orchestrator
+        brain.model_orchestrator.inject_model_manager(mm)
+    
     if not hasattr(brain, 'rule_engine') or brain.rule_engine is None:
         _LOG.info("rule_engine nicht in AIBrain gefunden - verwende vorinitialisierte Instanz")
         brain.rule_engine = rule_engine
-
+    
     if not hasattr(brain, 'protection_module') or brain.protection_module is None:
         _LOG.info("protection_module nicht in AIBrain gefunden - initialisiere neu mit rule_engine")
         brain.protection_module = ProtectionModule(rule_engine)
-
+    
     if not hasattr(brain, 'system_monitor') or brain.system_monitor is None:
         _LOG.info("system_monitor nicht in AIBrain gefunden - initialisiere neu")
         brain.system_monitor = SystemMonitor()
-
+    
+    # Registriere Lehrer-Modelle, falls vorhanden
+    if hasattr(brain, 'model_orchestrator') and brain.model_orchestrator is not None:
+        model_names = mm.list_models()
+        if model_names:
+            _LOG.info(f"Registriere {len(model_names)} Modelle als Lehrer-Modelle: {model_names}")
+            for model_name in model_names:
+                brain.model_orchestrator.register_teacher_model(model_name)
+        else:
+            _LOG.warning("Keine Modelle gefunden für Lehrer-Registrierung")
+    
     autonomous_loop = None
     if enable_autonomy and AUTONOMY_AVAILABLE:
         try:
             _LOG.info("Initialisiere den autonomen Lernzyklus...")
-
+            
             # Initialisiere den autonomen Lernzyklus
             autonomous_loop = AutonomousLoop(
                 ai_engine=brain,
@@ -119,9 +130,8 @@ def build_components(rules_path: Optional[str] = None, enable_autonomy: bool = F
         except Exception as e:
             _LOG.error(f"Fehler bei der Initialisierung des autonomen Lernzyklus: {str(e)}", exc_info=True)
             autonomous_loop = None
-
+    
     return brain, mm, pm, autonomous_loop
-
 
 def parse_args(argv=None):
     p = argparse.ArgumentParser(description='Mindestentinel - Autonomous AI System')
@@ -133,7 +143,6 @@ def parse_args(argv=None):
     p.add_argument("--no-start", action="store_true", help="Init components but do not start any server")
     return p.parse_args(argv)
 
-
 def main(argv=None):
     args = parse_args(argv)
     # Sicherstellen, dass die Multiprocessing-Startmethode kompatibel ist
@@ -142,7 +151,7 @@ def main(argv=None):
             multiprocessing.set_start_method('spawn', force=True)
     except Exception as e:
         _LOG.warning(f"Multiprocessing-Startmethode konnte nicht gesetzt werden: {str(e)}")
-
+    
     # Initialisiere alle Komponenten
     brain, mm, pm, autonomous_loop = build_components(enable_autonomy=args.enable_autonomy)
 
@@ -155,7 +164,7 @@ def main(argv=None):
 
     # Starte das Gehirn (Hintergrundloop etc.)
     brain.start()
-
+    
     # Starte den autonomen Lernzyklus, wenn aktiviert und erfolgreich initialisiert
     if args.enable_autonomy and autonomous_loop is not None:
         _LOG.info("Aktiviere autonomen Lernzyklus...")
@@ -165,7 +174,7 @@ def main(argv=None):
     elif autonomous_loop is not None:
         # Autonomie ist nicht gewünscht, aber der Loop wurde initialisiert - stoppe ihn
         _LOG.info("Autonomer Lernzyklus initialisiert, aber nicht aktiviert. Halte bereit für spätere Aktivierung.")
-
+    
     if args.no_start:
         _LOG.info("System initialisiert (no-start). AIBrain läuft im Hintergrund. Exit.")
         return
@@ -192,7 +201,6 @@ def main(argv=None):
                 _LOG.info("Deaktiviere autonomen Lernzyklus...")
                 autonomous_loop.stop()
             brain.stop()
-
 
 if __name__ == "__main__":
     try:
