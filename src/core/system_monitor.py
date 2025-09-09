@@ -1,4 +1,3 @@
-# src/core/system_monitor.py
 """
 SystemMonitor - Überwacht Systemressourcen und Leistung
 """

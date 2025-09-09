@@ -1,3 +1,6 @@
+# Unterdruecke pkg_resources-Warning 
+import warnings 
+warnings.filterwarnings("ignore", category=UserWarning, message="pkg_resources is deprecated") 
 # src/main.py
 """
 Einstiegspunkt für Mindestentinel.

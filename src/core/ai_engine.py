@@ -97,31 +97,43 @@ class AIBrain:
 
         _LOGGER.info("AIBrain gestoppt.")
 
-    def _bg_thread_fn(self) -> None:
-        """
-        Hintergrund-Thread: erzeugt einen eigenen asyncio-Eventloop,
-        führt periodische Jobs (Snapshot, persist, self-learning trigger) aus.
-        """
+def _bg_thread_fn(self) -> None:
+    """
+    Hintergrund-Thread: erzeugt einen eigenen asyncio-Eventloop,
+    führt periodische Jobs (Snapshot, persist, self-learning trigger) aus.
+    """
+    try:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        self._async_loop = loop
+        
+        # Starte den Hintergrundloop
+        loop.run_until_complete(self._bg_loop())
+        
+    except Exception:
+        # Nur loggen, wenn das System noch läuft
+        with self._lock:
+            if self._running:
+                _LOGGER.exception("Fehler im Hintergrundthread.")
+    finally:
         try:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            self._async_loop = loop
+            # Stelle sicher, dass alle Tasks abgebrochen werden
+            if loop.is_running():
+                # Hole alle laufenden Tasks
+                tasks = asyncio.all_tasks(loop=loop)
+                for task in tasks:
+                    task.cancel()
+                
+                # Warte auf Abschluss der Tasks
+                loop.run_until_complete(
+                    asyncio.gather(*tasks, return_exceptions=True)
+                )
             
-            # Starte den Hintergrundloop
-            loop.run_until_complete(self._bg_loop())
-            
+            # Schließe den Loop sauber
+            if not loop.is_closed():
+                loop.close()
         except Exception:
-            # Nur loggen, wenn das System noch läuft
-            with self._lock:
-                if self._running:
-                    _LOGGER.exception("Fehler im Hintergrundthread.")
-        finally:
-            try:
-                # Stelle sicher, dass der Loop sauber geschlossen wird
-                if self._async_loop and not self._async_loop.is_closed():
-                    self._async_loop.close()
-            except Exception:
-                pass
+            _LOGGER.exception("Fehler beim Schließen des Event-Loops")
 
     async def _bg_loop(self) -> None:
         _LOGGER.info("Hintergrund-Loop gestartet.")

@@ -6,10 +6,8 @@ from .auth import require_token as require_legacy_token
 from .token_auth import verify_session_token
 from .auth_endpoints import router as auth_router
 from fastapi.middleware.cors import CORSMiddleware
-
 def create_app(brain=None, model_manager=None, plugin_manager=None):
     app = FastAPI(title="Mindestentinel API - Alpha")
-
     # CORS for development
     app.add_middleware(
         CORSMiddleware,
@@ -18,10 +16,8 @@ def create_app(brain=None, model_manager=None, plugin_manager=None):
         allow_methods=["*"],
         allow_headers=["*"],
     )
-
     # include auth router
     app.include_router(auth_router)
-
     @app.get("/status")
     def status(authorization: Optional[str] = Header(None)):
         # Accept Bearer legacy token or session token
@@ -43,14 +39,13 @@ def create_app(brain=None, model_manager=None, plugin_manager=None):
                     raise HTTPException(status_code=403, detail="Invalid token")
         # unauthenticated but allow status
         return {"status":"ok","auth":"none","uptime":0}
-
     @app.post("/task")
     def task_endpoint(prompt: dict, authorization: Optional[str] = Header(None)):
         # simple protected endpoint: allow if valid token
         if not authorization:
             raise HTTPException(status_code=403, detail="Missing authorization")
         parts = authorization.split()
-        if len(parts) != 2 or parts[0].lower() != "bearer":
+        if len(parts) = "bearer":
             raise HTTPException(status_code=403, detail="Invalid auth header")
         token = parts[1]
         # verify either legacy or session
@@ -71,5 +66,5 @@ def create_app(brain=None, model_manager=None, plugin_manager=None):
                 raise HTTPException(status_code=403, detail="Invalid token: " + str(e))
         # do simple echo for now
         return {"response": f"received prompt: {prompt}", "user": auth_user}
-
     return app
+    app.include_router(shutdown_router, prefix="", tags=["system"])
