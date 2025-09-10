@@ -1,0 +1,1 @@
+{"mistral-7b": {"type": "local", "path": "data/models/mistral-7b", "status": "loaded", "config": {"temperature": 0.7, "max_tokens": 512}, "categories": ["cognitive", "knowledge", "general"], "metadata": {"last_improved": null, "performance_gain": 0.0}}} 
