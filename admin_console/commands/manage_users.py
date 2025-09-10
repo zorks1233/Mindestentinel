@@ -1,50 +1,131 @@
 #!/usr/bin/env python3
-# admin_console/commands/manage_users.py
 """
-Manage users: create, list, regen-backup
-Usage:
-  python admin_console/commands/manage_users.py create --username USER --password PASS [--admin]
-  python admin_console/commands/manage_users.py list
-  python admin_console/commands/manage_users.py regen --username USER
-"""
-import sys, os
+manage_users.py - Verwaltet Benutzerkonten
 
+Dieses Skript ermöglicht das Erstellen, Auflisten und Löschen von Benutzerkonten.
+"""
+
+import sys
 import argparse
-from src.core import auth
+import logging
+from pathlib import Path
+import os
+import hashlib
+import secrets
+from datetime import datetime
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..")))
+# Füge Projekt-Root zum Python-Pfad hinzu
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
-def parse_args():
-    p = argparse.ArgumentParser()
-    sub = p.add_subparsers(dest="cmd", required=True)
-    c = sub.add_parser("create")
-    c.add_argument("--username", required=True)
-    c.add_argument("--password", required=True)
-    c.add_argument("--admin", action="store_true")
-    sub.add_parser("list")
-    r = sub.add_parser("regen")
-    r.add_argument("--username", required=True)
-    return p.parse_args()
+from src.core.knowledge_base import KnowledgeBase
+
+# Setze Logging-Konfiguration
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[
+        logging.StreamHandler(sys.stdout)
+    ]
+)
+logger = logging.getLogger("mindestentinel.manage_users")
+
+def create_user(username: str, password: str, is_admin: bool = False):
+    """Erstellt einen neuen Benutzer"""
+    # Prüfe, ob Benutzername bereits existiert
+    kb = KnowledgeBase()
+    existing = kb.query(
+        "SELECT * FROM users WHERE username = ?", 
+        (username,)
+    )
+    
+    if existing:
+        logger.error(f"Benutzer '{username}' existiert bereits")
+        return False
+    
+    # Hash das Passwort
+    salt = secrets.token_hex(16)
+    password_hash = hashlib.sha256((password + salt).encode()).hexdigest()
+    
+    # Erstelle Benutzer
+    user = {
+        "username": username,
+        "password_hash": password_hash,
+        "salt": salt,
+        "is_admin": int(is_admin),
+        "created_at": datetime.now().isoformat(),
+        "last_login": None
+    }
+    
+    # Speichere Benutzer
+    kb.store("users", user)
+    logger.info(f"Benutzer '{username}' wurde erfolgreich erstellt")
+    return True
+
+def list_users():
+    """Listet alle Benutzer auf"""
+    kb = KnowledgeBase()
+    users = kb.query("SELECT username, is_admin, created_at FROM users")
+    
+    if not users:
+        logger.info("Keine Benutzer gefunden")
+        return
+    
+    logger.info("Gefundene Benutzer:")
+    for user in users:
+        admin_status = "Admin" if user[1] else "Benutzer"
+        logger.info(f"- {user[0]} ({admin_status}, erstellt: {user[2]})")
+
+def delete_user(username: str):
+    """Löscht einen Benutzer"""
+    kb = KnowledgeBase()
+    
+    # Prüfe, ob Benutzer existiert
+    user = kb.query(
+        "SELECT * FROM users WHERE username = ?", 
+        (username,)
+    )
+    
+    if not user:
+        logger.error(f"Benutzer '{username}' existiert nicht")
+        return False
+    
+    # Lösche Benutzer
+    kb.delete("users", f"username = '{username}'")
+    logger.info(f"Benutzer '{username}' wurde erfolgreich gelöscht")
+    return True
 
 def main():
-    args = parse_args()
-    if args.cmd == "create":
-        res = auth.create_user(args.username, args.password, is_admin=args.admin)
-        print("Created user:", res["username"])
-        if res.get("totp_secret"):
-            print("TOTP secret (show in authenticator app):", res["totp_secret"])
-        print("Backup codes (show once):")
-        for c in res["backup_codes"]:
-            print(" -", c)
-    elif args.cmd == "list":
-        users = auth.list_users()
-        for u in users:
-            print(u)
-    elif args.cmd == "regen":
-        new = auth.regenerate_backup_codes(args.username)
-        print("New backup codes for", args.username)
-        for c in new:
-            print(" -", c)
+    parser = argparse.ArgumentParser(description='Verwalte Benutzerkonten')
+    subparsers = parser.add_subparsers(dest='command', help='Verfügbare Befehle')
+    
+    # Create-Befehl
+    create_parser = subparsers.add_parser('create', help='Erstelle einen neuen Benutzer')
+    create_parser.add_argument('--username', required=True, help='Benutzername')
+    create_parser.add_argument('--password', required=True, help='Passwort')
+    create_parser.add_argument('--admin', action='store_true', help='Benutzer als Administrator markieren')
+    
+    # List-Befehl
+    subparsers.add_parser('list', help='Liste alle Benutzer auf')
+    
+    # Delete-Befehl
+    delete_parser = subparsers.add_parser('delete', help='Lösche einen Benutzer')
+    delete_parser.add_argument('--username', required=True, help='Zu löschender Benutzername')
+    
+    args = parser.parse_args()
+    
+    if args.command == 'create':
+        create_user(args.username, args.password, args.admin)
+    elif args.command == 'list':
+        list_users()
+    elif args.command == 'delete':
+        delete_user(args.username)
+    else:
+        parser.print_help()
+        return 1
+    
+    return 0
 
-if __name__ == '__main__':
-    main()
+if __name__ == "__main__":
+    sys.exit(main())

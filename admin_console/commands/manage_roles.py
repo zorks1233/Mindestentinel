@@ -4,6 +4,13 @@ admin_console/commands/manage_roles.py
 Simple role assignment CLI that edits src/core/auth_roles.json
 """
 import argparse, json, os, sys
+import sys
+from pathlib import Path
+
+# Füge Projekt-Root zum Python-Pfad hinzu
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 ROLES_PATH = os.path.normpath(os.path.join(os.path.dirname(__file__), '..', '..', 'src', 'core', 'auth_roles.json'))
 

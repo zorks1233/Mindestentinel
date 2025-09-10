@@ -8,6 +8,13 @@ Usage:
 import argparse
 import json
 from src.admin.admin_console import build_core
+import sys
+from pathlib import Path
+
+# Füge Projekt-Root zum Python-Pfad hinzu
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 def parse_args(argv=None):
     p = argparse.ArgumentParser(description="Starte Optimierungs-Routine im System")

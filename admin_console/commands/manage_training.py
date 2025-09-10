@@ -2,6 +2,13 @@
 import argparse
 from pathlib import Path
 import shutil
+import sys
+from pathlib import Path
+
+# Füge Projekt-Root zum Python-Pfad hinzu
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 TRAIN_DIR = Path('training_data')
 TRAIN_DIR.mkdir(parents=True, exist_ok=True)
