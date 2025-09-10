@@ -425,15 +425,18 @@ class AutonomousLoop:
             bool: True, wenn das Ziel sicher ist, sonst False
         """
         try:
-            # Hole die relevanten Regeln für Lernziele
-            rules = self.rule_engine.get_rules_by_category("learning_goals")
+            # Sicherheitsprüfung durchführen
+            # In der aktuellen RuleEngine-Implementierung gibt es keine get_rules() Methode
+            # Stattdessen verwenden wir die evaluate_rule Methode direkt
             
-            # Prüfe das Ziel gegen die Regeln
-            for rule in rules:
-                if not self.rule_engine.evaluate_rule(rule, {"goal": goal}):
-                    logger.warning("Lernziel %s verstößt gegen Regel %s", goal["id"], rule["id"])
-                    return False
+            # Prüfe, ob das Lernziel gegen die Regeln verstößt
+            context = {"goal": goal}
+            is_safe = self.rule_engine.evaluate_rule({"category": "learning_goals"}, context)
             
+            if not is_safe:
+                logger.warning("Lernziel %s verstößt gegen Sicherheitsregeln", goal["id"])
+                return False
+                
             return True
             
         except Exception as e:

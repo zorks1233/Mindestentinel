@@ -16,7 +16,7 @@ import logging
 import threading
 import time
 import asyncio
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 
 # Initialisiere Logger
 logger = logging.getLogger("mindestentinel.ai_engine")

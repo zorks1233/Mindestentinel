@@ -1,5 +1,4 @@
-# -*- coding: utf-8 -*- 
-#src/main.py
+# -*- coding: utf-8 -*-
 from __future__ import annotations
 """
 Einstiegspunkt für Mindestentinel.
@@ -200,8 +199,8 @@ def main(argv=None):
     # Haupt-Loop für das Warten auf Beendigung
     try:
         while True:
-            # Prüfe, ob der autonome Lernzyklus noch läuft
-            if autonomy_thread and not autonomy_thread.is_alive():
+            # PRÜFE DEN AKTUELLEN ZUSTAND DES AUTONOMEN LOOP, NICHT DES START-THREADS
+            if args.enable_autonomy and autonomous_loop is not None and not autonomous_loop.active:
                 _LOG.info("Autonomer Lernzyklus beendet. Stoppe System.")
                 break
                 

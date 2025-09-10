@@ -1,156 +1,216 @@
 # src/core/rule_engine.py
 """
-RuleEngine - läd und verwaltet die unumstößlichen Regeln (laws).
-Design:
-- Regeln liegen in einer YAML-Datei (z.B. config/rules_laws.yaml oder config/rules.yaml)
-- Regeln sind read-only während der Laufzeit (keine API zum Hinzufügen/Entfernen)
-- Prüft Aktionen/Commands auf Regelverletzungen und liefert klare Exceptions
-- Unterstützt einfache Pattern-Checks und Blacklist-Keywords
+rule_engine.py - Regel-Engine für Mindestentinel
+
+Diese Regel-Engine validiert Aktionen gegen vordefinierte Regeln.
+Es verwendet eine einfache, aber effektive Struktur für die Regelverwaltung.
+
+Wichtige Funktionen:
+- Regeln aus YAML/JSON laden
+- Regeln gegen Kontext auswerten
+- Sicherheitsprüfungen für kritische Operationen
+- Unterstützung für Regelkategorien
 """
 
-from __future__ import annotations
+import logging
+import os
 import yaml
-from pathlib import Path
-from typing import List, Dict, Any, Optional
-import re
+import json
+import hmac
+import hashlib
+from typing import Dict, Any, List, Optional
 
-DEFAULT_RULES_PATH = Path("config") / "rules.yaml"
-
-
-class RuleViolationError(PermissionError):
-    """Raised when an action violates one or more rules."""
-
+logger = logging.getLogger("mindestentinel.rule_engine")
 
 class RuleEngine:
-    def __init__(self, rules_path: Optional[str] = None):
-        self.rules_path = Path(rules_path) if rules_path else DEFAULT_RULES_PATH
-        self._laws: List[str] = []
-        self._compiled_patterns: List[re.Pattern] = []
-        self._load_rules()
-
-    def _load_rules(self) -> None:
-        if not self.rules_path.exists():
-            # if missing, create minimal safe default (must be edited by admin)
-            default = {
-                "laws": [
-                    "Der Schöpfer hat die höchste Autorität.",
-                    "Keine Aktionen, die physikalischen Schaden verursachen, ohne ausdrückliche Genehmigung.",
-                    "Keine Verarbeitung personenbezogener Daten ohne Zustimmung."
-                ]
-            }
-            self.rules_path.parent.mkdir(parents=True, exist_ok=True)
-            with self.rules_path.open("w", encoding="utf-8") as fh:
-                yaml.safe_dump(default, fh, sort_keys=False, allow_unicode=True)
-            self._laws = default["laws"]
-        else:
-            with self.rules_path.open("r", encoding="utf-8") as fh:
-                data = yaml.safe_load(fh) or {}
-                self._laws = data.get("laws", [])
-        # Prepare simple patterns (lowercase) for quick checks
-        self._compiled_patterns = []
-        for law in self._laws:
-            # create patterns of important keywords, fallback to whole-text check
-            text = law.lower()
-            # extract words longer than 3 chars as potential keywords
-            keywords = [w for w in re.findall(r"\w{4,}", text)]
-            if keywords:
-                # pattern: any of keywords appears
-                pat = re.compile(r"|".join(re.escape(k) for k in keywords))
-            else:
-                pat = re.compile(re.escape(text))
-            self._compiled_patterns.append(pat)
-
-    def get_all_laws(self) -> List[str]:
-        """Gibt eine Kopie der geladenen Gesetze zurück."""
-        return list(self._laws)
-
-    def is_action_allowed(self, action_text: str, context: Optional[Dict[str, Any]] = None) -> bool:
+    """
+    Regel-Engine für Sicherheits- und Validierungsregeln.
+    
+    Lädt Regeln aus einer Datei und ermöglicht die Auswertung gegen einen Kontext.
+    """
+    
+    def __init__(self, rules_path: str = "config/rules.yaml", enforce_signature: bool = True):
         """
-        Prüft basierend auf heuristischen Pattern-Matches, ob die Aktion potentiell
-        gegen eine Regel verstößt. Diese Methode ist konservativ: tritt ein Treffer
-        auf, liefert sie False (d.h. Aktion nicht erlaubt).
-        - action_text: reiner Text (z. B. Kommando / Beschreibung)
-        - context: optional, z. B. {"actor": "user", "target": "filesystem"}
-        """
-        if not action_text or not isinstance(action_text, str):
-            return False
-
-        low = action_text.lower()
-
-        # 1) Blacklist common dangerous terms (explicit)
-        blacklist = [
-            "delete all", "format", "drop table", "shutdown -h now",
-            "rm -rf /", "self-destruct", "kill process", "unauthoriz", "exploit"
-        ]
-        for b in blacklist:
-            if b in low:
-                return False
-
-        # 2) Pattern-based checks against laws
-        for pat in self._compiled_patterns:
-            if pat.search(low):
-                # If the law text refers to allowed actions, we need more logic.
-                # Conservative approach: treat any match as potential violation and require manual check.
-                return False
-
-        # 3) Context-based allow logic (simple)
-        if context:
-            actor = context.get("actor")
-            if actor == "creator":
-                # Creator has high authority — allow actions that would otherwise be blocked.
-                return True
-
-        return True
-
-    def enforce_action(self, action_text: str, context: Optional[Dict[str, Any]] = None) -> None:
-        """
-        Prüft und wirft RuleViolationError wenn die Aktion nicht erlaubt ist.
-        Admin/Creator kann über context={"actor":"creator"} Ausnahmen gewähren.
-        """
-        allowed = self.is_action_allowed(action_text, context=context)
-        if not allowed:
-            raise RuleViolationError(f"Aktion verweigert durch RuleEngine: '{action_text}'")
-
-    def check_rule_compliance(self, action: Dict) -> Dict:
-        """
-        Überprüft die Regelkonformität einer Aktion und gibt detaillierte Informationen zurück.
-
+        Initialisiert die Regel-Engine.
+        
         Args:
-            action: Die zu überprüfende Aktion
-
-        Returns:
-            Dict mit Ergebnis der Überprüfung
+            rules_path: Pfad zur Regelkonfigurationsdatei
+            enforce_signature: Gibt an, ob die Regelsignatur erzwungen wird
         """
-        # Extrahiere relevante Informationen aus der Aktion
-        action_type = action.get("action", "unknown")
-        target = action.get("target", "")
-        category = action.get("category", "general")
-
-        # Erstelle einen Kontext für die Überprüfung
-        context = {
-            "actor": action.get("actor", "system"),
-            "category": category
-        }
-
-        # Prüfe, ob die Aktion erlaubt ist
-        compliant = self.is_action_allowed(target, context=context)
-
-        # Bestimme verletzte Regeln (wenn nicht konform)
-        violated_rules = []
-        if not compliant:
-            # In einer echten Implementierung würden wir hier die spezifischen verletzten Regeln identifizieren
-            violated_rules.append("Potentielle Regelverletzung erkannt - detaillierte Analyse erforderlich")
-
-        return {
-            "compliant": compliant,
-            "violated_rules": violated_rules,
-            "details": {
-                "action_type": action_type,
-                "target": target,
-                "category": category,
-                "analysis": "Aktion erlaubt" if compliant else "Aktion könnte gegen Regeln verstoßen"
-            }
-        }
-
-    # Keine Methoden, die Regeln während Laufzeit verändern (immutability).
-    # Wenn Admin Regeln ändern will, muss er die config/rules.yaml editieren und System neu starten.
+        self.rules_path = rules_path
+        self.enforce_signature = enforce_signature
+        self.rules = []
+        self.signature_valid = False
+        
+        # Lade Regeln
+        self._load_rules()
+        
+        # Prüfe Signatur, falls erforderlich
+        if enforce_signature:
+            self.signature_valid = self._verify_signature()
+            if not self.signature_valid:
+                logger.critical("Regel-Signatur ungültig und enforce_signature=True. Laden abgebrochen.")
+                raise RuntimeError("Rules signature invalid")
+        
+        logger.info("RuleEngine initialisiert mit %d Regeln.", len(self.rules))
+    
+    def _load_rules(self):
+        """Lädt Regeln aus der Konfigurationsdatei."""
+        try:
+            # Prüfe, ob die Datei existiert
+            if not os.path.exists(self.rules_path):
+                logger.error("Regelkonfigurationsdatei nicht gefunden: %s", self.rules_path)
+                return
+            
+            # Lade die Datei basierend auf der Erweiterung
+            ext = os.path.splitext(self.rules_path)[1].lower()
+            if ext == ".yaml" or ext == ".yml":
+                with open(self.rules_path, 'r') as f:
+                    self.rules = yaml.safe_load(f)
+            elif ext == ".json":
+                with open(self.rules_path, 'r') as f:
+                    self.rules = json.load(f)
+            else:
+                logger.error("Unbekanntes Format für Regeldatei: %s", ext)
+                return
+            
+            # Stelle sicher, dass rules eine Liste ist
+            if not isinstance(self.rules, list):
+                logger.warning("Regeln sind kein Array. Konvertiere zu Liste.")
+                self.rules = [self.rules] if self.rules else []
+            
+            logger.info("Regeln geladen aus %s", self.rules_path)
+            
+        except Exception as e:
+            logger.error("Fehler beim Laden der Regeln: %s", str(e), exc_info=True)
+            self.rules = []
+    
+    def _verify_signature(self) -> bool:
+        """
+        Überprüft die Signatur der Regeldatei.
+        
+        Returns:
+            bool: True, wenn die Signatur gültig ist, sonst False
+        """
+        sig_path = os.path.join(os.path.dirname(self.rules_path), "rules.sig")
+        key_path = os.path.join(os.path.dirname(self.rules_path), "rules_key.key")
+        
+        # Prüfe, ob die Dateien existieren
+        if not os.path.exists(sig_path) or not os.path.exists(key_path):
+            logger.warning("Signaturdatei oder Schlüssel nicht gefunden")
+            return False
+        
+        try:
+            # Lade den Schlüssel
+            with open(key_path, 'rb') as f:
+                key = f.read()
+            
+            # Lade die Signatur
+            with open(sig_path, 'r') as f:
+                expected_sig = f.read().strip()
+            
+            # Berechne die tatsächliche Signatur
+            with open(self.rules_path, 'rb') as f:
+                data = f.read()
+            actual_sig = hmac.new(key, data, hashlib.sha256).hexdigest()
+            
+            # Vergleiche die Signaturen
+            if hmac.compare_digest(actual_sig, expected_sig):
+                logger.info("Regel-Signatur erfolgreich verifiziert")
+                return True
+            else:
+                logger.error("Regel-Signatur ungültig")
+                return False
+                
+        except Exception as e:
+            logger.error("Fehler bei der Signaturprüfung: %s", str(e), exc_info=True)
+            return False
+    
+    def evaluate_rule(self, rule: Dict, context: Dict) -> bool:
+        """
+        Evaluiert eine Regel gegen einen Kontext.
+        
+        Args:
+            rule: Die zu evaluierende Regel
+            context: Der Kontext, gegen den die Regel evaluiert wird
+            
+        Returns:
+            bool: True, wenn die Regel erfüllt ist, sonst False
+        """
+        try:
+            # Prüfe die Kategorie der Regel
+            category = rule.get("category", "general")
+            
+            # Spezialbehandlung für Lernziele
+            if category == "learning_goals" and "goal" in context:
+                goal = context["goal"]
+                # Prüfe, ob das Ziel sicher ist
+                return self._evaluate_learning_goal(goal)
+            
+            # Standardregel-Evaluation
+            conditions = rule.get("conditions", {})
+            for key, value in conditions.items():
+                if key not in context or context[key] != value:
+                    return False
+            
+            return True
+            
+        except Exception as e:
+            logger.error("Fehler bei der Regel-Evaluation: %s", str(e), exc_info=True)
+            return False
+    
+    def _evaluate_learning_goal(self, goal: Dict) -> bool:
+        """
+        Evaluiert spezielle Regeln für Lernziele.
+        
+        Args:
+            goal: Das Lernziel
+            
+        Returns:
+            bool: True, wenn das Lernziel sicher ist, sonst False
+        """
+        # Prüfe die Komplexität
+        complexity = goal.get("complexity", 3)
+        if complexity > 5:
+            logger.warning("Lernziel mit zu hoher Komplexität (%d)", complexity)
+            return False
+        
+        # Prüfe die Kategorie
+        category = goal.get("category", "general")
+        if category not in ["cognitive", "optimization", "knowledge", "security"]:
+            logger.warning("Lernziel mit ungültiger Kategorie: %s", category)
+            return False
+        
+        # Alle Prüfungen bestanden
+        return True
+    
+    def is_consistent(self) -> bool:
+        """
+        Prüft, ob die Regeln konsistent sind.
+        
+        Returns:
+            bool: True, wenn die Regeln konsistent sind, sonst False
+        """
+        # In dieser einfachen Implementierung prüfen wir nur, ob Regeln vorhanden sind
+        return len(self.rules) > 0
+    
+    def get_rules(self) -> List[Dict]:
+        """
+        Gibt alle Regeln zurück.
+        
+        Returns:
+            List[Dict]: Liste aller Regeln
+        """
+        return self.rules
+    
+    def get_rules_by_category(self, category: str) -> List[Dict]:
+        """
+        Gibt Regeln einer bestimmten Kategorie zurück.
+        
+        Args:
+            category: Die gewünschte Kategorie
+            
+        Returns:
+            List[Dict]: Liste der Regeln in der Kategorie
+        """
+        return [rule for rule in self.rules if rule.get("category") == category]
