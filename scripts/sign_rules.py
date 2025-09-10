@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Signiert die Regeldatei mit HMAC-SHA256
-Verwendung: python scripts/sign_rules.py config/rules.json
+Verwendung: python scripts/sign_rules.py config/rules.yaml
 """
 
 import hmac
@@ -49,7 +49,7 @@ def sign(rules_path: Path, key_path: Path, sig_path: Path):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Signiert die Regeldatei')
-    parser.add_argument("rules", help="Pfad zur Regeldatei (z.B. config/rules.json)")
+    parser.add_argument("rules", help="Pfad zur Regeldatei (z.B. config/rules.yaml)")
     parser.add_argument("--key", default="config/rules_key.key", help="Pfad zum Signaturschlüssel")
     parser.add_argument("--sig", default="config/rules.sig", help="Pfad zur Signaturdatei")
     
