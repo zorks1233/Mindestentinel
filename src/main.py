@@ -1,7 +1,6 @@
-# Unterdruecke pkg_resources-Warning 
-import warnings 
-warnings.filterwarnings("ignore", category=UserWarning, message="pkg_resources is deprecated") 
-# src/main.py
+# -*- coding: utf-8 -*- 
+#src/main.py
+from __future__ import annotations
 """
 Einstiegspunkt für Mindestentinel.
 - Startet AIBrain, ModelManager, PluginManager
@@ -15,7 +14,10 @@ Beispiel:
     python -m src.main --start-rest --enable-autonomy --api-port 8000
 """
 
-from __future__ import annotations
+import warnings
+# Unterdrücke pkg_resources-Warning
+warnings.filterwarnings("ignore", category=UserWarning, message="pkg_resources is deprecated")
+
 import argparse
 import multiprocessing
 import platform
@@ -25,8 +27,6 @@ import uvicorn
 import threading
 import time
 from typing import Optional, Tuple
-import warnings
-warnings.filterwarnings("ignore", category=UserWarning, message="pkg_resources is deprecated")
 
 # Import des AutonomousLoop Moduls
 try:
