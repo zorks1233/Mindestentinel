@@ -7,11 +7,13 @@ Dieses Modul implementiert die REST-API für Mindestentinel mit folgenden Endpun
 - /query: Anfragen an das KI-System stellen
 - /models: Informationen zu verfügbaren Modellen
 - /knowledge: Zugriff auf die Wissensdatenbank
+- /auth/login: Authentifizierung für Token-Erstellung
+- /admin: Admin-Endpunkte (nur mit Admin-Token zugänglich)
 - /shutdown: Sauberes Herunterfahren des Systems
 """
 
 import logging
-from fastapi import FastAPI, HTTPException, Depends, Request, status
+from fastapi import FastAPI, HTTPException, Depends, Request, status as fastapi_status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from typing import Dict, Any, List, Optional
 from src.core.knowledge_base import KnowledgeBase
@@ -23,6 +25,8 @@ import os
 import jwt
 from jwt.exceptions import InvalidTokenError
 import time
+import threading
+from passlib.context import CryptContext
 
 logger = logging.getLogger("mindestentinel.rest_api")
 
@@ -30,6 +34,9 @@ logger = logging.getLogger("mindestentinel.rest_api")
 SECRET_KEY = os.getenv("MIND_API_KEY", "mindestentinel_default_secret")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
+
+# Passwort-Hashing
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 security = HTTPBearer()
 
@@ -52,7 +59,7 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
         return payload
     except InvalidTokenError:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+            status_code=fastapi_status.HTTP_401_UNAUTHORIZED,
             detail="Ungültiges Token",
             headers={"WWW-Authenticate": "Bearer"},
         )
@@ -62,7 +69,7 @@ def create_access_token(data: dict, expires_delta: Optional[int] = None) -> str:
     Erstellt ein neues JWT-Access-Token
     
     Args:
-        data: Die Daten, die im Token gespeichert werden sollen
+         Die Daten, die im Token gespeichert werden sollen
         expires_delta: Optionale Ablauffrist in Minuten
         
     Returns:
@@ -101,7 +108,7 @@ def create_app(ai_engine: AIBrain, model_manager: ModelManager, plugin_manager: 
         """Grundlegender Endpunkt für Systeminformationen"""
         return {
             "status": "running",
-            "version": "build0015.1A",
+            "version": "build0015.2A",
             "autonomy_active": ai_engine.autonomous_loop.active if hasattr(ai_engine, 'autonomous_loop') and ai_engine.autonomous_loop else False,
             "model_count": len(model_manager.list_models()),
             "knowledge_entries": ai_engine.knowledge_base.get_statistics()["total_entries"] if hasattr(ai_engine, 'knowledge_base') else 0,
@@ -111,13 +118,15 @@ def create_app(ai_engine: AIBrain, model_manager: ModelManager, plugin_manager: 
                 "query": "/query",
                 "models": "/models",
                 "knowledge": "/knowledge",
+                "auth": "/auth/login",
+                "admin": "/admin",
                 "shutdown": "/shutdown"
             }
         }
     
     # Status-Endpunkt
     @app.get("/status")
-    async def status():
+    async def system_status():
         """Gibt den aktuellen Systemstatus zurück"""
         return {
             "status": "running",
@@ -143,7 +152,7 @@ def create_app(ai_engine: AIBrain, model_manager: ModelManager, plugin_manager: 
         models = body.get("models", [])
         
         if not prompt:
-            raise HTTPException(status_code=400, detail="Prompt ist erforderlich")
+            raise HTTPException(status_code=fastapi_status.HTTP_400_BAD_REQUEST, detail="Prompt ist erforderlich")
         
         try:
             # Abfrage an das KI-System
@@ -156,7 +165,7 @@ def create_app(ai_engine: AIBrain, model_manager: ModelManager, plugin_manager: 
             }
         except Exception as e:
             logger.error(f"Fehler bei der Abfrage: {str(e)}", exc_info=True)
-            raise HTTPException(status_code=500, detail="Fehler bei der Verarbeitung der Anfrage")
+            raise HTTPException(status_code=fastapi_status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Fehler bei der Verarbeitung der Anfrage")
     
     # Models-Endpunkt
     @app.get("/models")
@@ -190,12 +199,12 @@ def create_app(ai_engine: AIBrain, model_manager: ModelManager, plugin_manager: 
         kb = ai_engine.knowledge_base
         if category:
             entries = kb.query(
-                "SELECT * FROM knowledge WHERE category = ? ORDER BY timestamp DESC LIMIT ?",
+                "SELECT encrypted_data, id, category, timestamp, metadata FROM knowledge WHERE category = ? ORDER BY timestamp DESC LIMIT ?",
                 (category, limit)
             )
         else:
             entries = kb.query(
-                "SELECT * FROM knowledge ORDER BY timestamp DESC LIMIT ?",
+                "SELECT encrypted_data, id, category, timestamp, metadata FROM knowledge ORDER BY timestamp DESC LIMIT ?",
                 (limit,)
             )
         
@@ -203,6 +212,124 @@ def create_app(ai_engine: AIBrain, model_manager: ModelManager, plugin_manager: 
             "entries": entries,
             "count": len(entries),
             "limit": limit
+        }
+    
+    # Auth-Endpunkt
+    @app.post("/auth/login")
+    async def login(request: Request):
+        """Authentifiziert einen Benutzer und gibt ein JWT-Token zurück"""
+        body = await request.json()
+        username = body.get("username")
+        password = body.get("password")
+        
+        # Überprüfe, ob Benutzername und Passwort vorhanden sind
+        if not username or not password:
+            raise HTTPException(
+                status_code=fastapi_status.HTTP_400_BAD_REQUEST,
+                detail="Benutzername und Passwort sind erforderlich"
+            )
+        
+        # Authentifiziere gegen die Datenbank
+        try:
+            user = authenticate_user(username, password)
+            if not user:
+                raise HTTPException(
+                    status_code=fastapi_status.HTTP_401_UNAUTHORIZED,
+                    detail="Ungültiger Benutzername oder Passwort",
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
+            
+            # Erstelle ein Token
+            access_token = create_access_token(
+                data={"sub": username, "is_admin": bool(user["is_admin"])}  # WICHTIG: Konvertiere zu Boolean
+            )
+            
+            return {
+                "token": access_token,
+                "token_type": "bearer",
+                "expires_in": ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+                "is_admin": bool(user["is_admin"])  # WICHTIG: Konvertiere zu Boolean
+            }
+        except Exception as e:
+            logger.error(f"Fehler bei der Authentifizierung: {str(e)}", exc_info=True)
+            raise HTTPException(
+                status_code=fastapi_status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Interner Serverfehler bei der Authentifizierung"
+            )
+    
+    def authenticate_user(username: str, password: str) -> Optional[Dict]:
+        """
+        Authentifiziert einen Benutzer gegen die Datenbank.
+        
+        Args:
+            username: Der Benutzername
+            password: Das Passwort
+            
+        Returns:
+            Optional[Dict]: Benutzerdaten, falls erfolgreich, sonst None
+        """
+        # Hole Benutzer aus der Datenbank
+        kb = ai_engine.knowledge_base
+        users = kb.query(
+            "SELECT id, username, password_hash, is_admin, created_at FROM users WHERE username = ?",
+            (username,)
+        )
+        
+        if not users:
+            logger.warning(f"Benutzer '{username}' nicht gefunden")
+            return None
+            
+        user = users[0]
+        
+        # Überprüfe das Passwort
+        if not pwd_context.verify(password, user["password_hash"]):
+            logger.warning(f"Falsches Passwort für Benutzer '{username}'")
+            return None
+        
+        # Aktualisiere letzte Anmeldezeit
+        kb.query(
+            "UPDATE users SET last_login = ? WHERE id = ?",
+            (datetime.datetime.now().isoformat(), user["id"])
+        )
+        
+        return {
+            "id": user["id"],
+            "username": user["username"],
+            "is_admin": user["is_admin"],
+            "created_at": user["created_at"]
+        }
+    
+    # Admin-Endpunkte (nur für Admins)
+    @app.get("/admin/users")
+    async def list_users(credentials: HTTPAuthorizationCredentials = Depends(security)):
+        """Listet alle Benutzer auf (nur für Admins)"""
+        payload = verify_token(credentials)
+        
+        # KORRIGIERTE PRÜFUNG: Überprüfe explizit, ob is_admin True ist
+        is_admin = payload.get("is_admin", False)
+        if not (is_admin is True or is_admin == 1):
+            raise HTTPException(
+                status_code=fastapi_status.HTTP_403_FORBIDDEN,
+                detail="Nur Administratoren dürfen Benutzer auflisten"
+            )
+        
+        # Hole Benutzer aus der Datenbank
+        kb = ai_engine.knowledge_base
+        users = kb.query(
+            "SELECT id, username, is_admin, created_at, last_login FROM users ORDER BY created_at DESC"
+        )
+        
+        return {
+            "users": [
+                {
+                    "id": user["id"],
+                    "username": user["username"],
+                    "is_admin": bool(user["is_admin"]),  # Konvertiere zu Boolean für die Ausgabe
+                    "created_at": user["created_at"],
+                    "last_login": user["last_login"]
+                }
+                for user in users
+            ]
         }
     
     # Shutdown-Endpunkt
@@ -214,10 +341,11 @@ def create_app(ai_engine: AIBrain, model_manager: ModelManager, plugin_manager: 
         # Token überprüfen
         payload = verify_token(credentials)
         
-        # Prüfe, ob der Benutzer Admin-Rechte hat
-        if not payload.get("is_admin", False):
+        # KORRIGIERTE PRÜFUNG: Überprüfe explizit, ob is_admin True ist
+        is_admin = payload.get("is_admin", False)
+        if not (is_admin is True or is_admin == 1):
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
+                status_code=fastapi_status.HTTP_403_FORBIDDEN,
                 detail="Nur Administratoren dürfen das System herunterfahren"
             )
         
@@ -234,25 +362,5 @@ def create_app(ai_engine: AIBrain, model_manager: ModelManager, plugin_manager: 
         shutdown_thread.start()
         
         return {"status": "shutdown", "message": "Shutdown initiated"}
-    
-    # Login-Endpunkt
-    @app.post("/login")
-    async def login(request: Request):
-        """Authentifiziert einen Benutzer und gibt ein JWT-Token zurück"""
-        body = await request.json()
-        username = body.get("username")
-        password = body.get("password")
-        
-        # Hier würde die eigentliche Authentifizierung stattfinden
-        # In dieser Demo-Version akzeptieren wir jedes Passwort
-        if not username:
-            raise HTTPException(status_code=400, detail="Benutzername ist erforderlich")
-        
-        # Erstelle ein Token
-        access_token = create_access_token(
-            data={"sub": username, "is_admin": username == "admin"}
-        )
-        
-        return {"access_token": access_token, "token_type": "bearer"}
     
     return app

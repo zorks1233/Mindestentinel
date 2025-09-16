@@ -45,11 +45,14 @@ from src.core.protection_module import ProtectionModule
 from src.core.system_monitor import SystemMonitor
 from src.api.rest_api import create_app
 from src.api.websocket_api import create_ws_app
+from src.core.logging_config import setup_logging
+from src.core.user_manager import UserManager
 
+# Setze Logging vor allen anderen Initialisierungen
+setup_logging()
 _LOG = logging.getLogger("mindestentinel.main")
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
-def build_components(rules_path: Optional[str] = None, enable_autonomy: bool = False) -> Tuple[AIBrain, ModelManager, PluginManager, Optional['AutonomousLoop']]:
+def build_components(rules_path: Optional[str] = None, enable_autonomy: bool = False) -> Tuple[AIBrain, ModelManager, PluginManager, Optional['AutonomousLoop'], UserManager]:
     """
     Initialisiert alle Systemkomponenten
     
@@ -58,7 +61,7 @@ def build_components(rules_path: Optional[str] = None, enable_autonomy: bool = F
         enable_autonomy: Gibt an, ob der autonome Lernzyklus benötigt wird
         
     Returns:
-        Tupel mit (brain, model_manager, plugin_manager, autonomous_loop)
+        Tupel mit (brain, model_manager, plugin_manager, autonomous_loop, user_manager)
         Der letzte Wert ist None, wenn enable_autonomy=False oder nicht verfügbar
     """
     mm = ModelManager()
@@ -78,6 +81,17 @@ def build_components(rules_path: Optional[str] = None, enable_autonomy: bool = F
     if not hasattr(brain, 'knowledge_base') or brain.knowledge_base is None:
         _LOG.info("knowledge_base nicht in AIBrain gefunden - initialisiere neu")
         brain.knowledge_base = KnowledgeBase()
+    
+    # Initialisiere den UserManager
+    user_manager = UserManager(brain.knowledge_base)
+    
+    # Stelle sicher, dass mindestens ein Admin-Benutzer existiert
+    try:
+        # Versuche, den Admin-Benutzer zu erstellen
+        user_manager.create_user("admin", "admin123", is_admin=True)
+        _LOG.info("Standard-Admin-Benutzer 'admin' erstellt")
+    except ValueError:
+        _LOG.info("Standard-Admin-Benutzer 'admin' existiert bereits")
     
     if not hasattr(brain, 'model_orchestrator') or brain.model_orchestrator is None:
         _LOG.info("model_orchestrator nicht in AIBrain gefunden - initialisiere neu")
@@ -135,7 +149,7 @@ def build_components(rules_path: Optional[str] = None, enable_autonomy: bool = F
             _LOG.error(f"Fehler bei der Initialisierung des autonomen Lernzyklus: {str(e)}", exc_info=True)
             autonomous_loop = None
     
-    return brain, mm, pm, autonomous_loop
+    return brain, mm, pm, autonomous_loop, user_manager
 
 def parse_args(argv=None):
     p = argparse.ArgumentParser(description='Mindestentinel - Autonomous AI System')
@@ -145,10 +159,17 @@ def parse_args(argv=None):
     p.add_argument("--api-host", default="0.0.0.0", help="API host address")
     p.add_argument("--api-port", default=8000, type=int, help="API port number")
     p.add_argument("--no-start", action="store_true", help="Init components but do not start any server")
+    p.add_argument("--debug", action="store_true", help="Aktiviert Debug-Logging")
     return p.parse_args(argv)
 
 def main(argv=None):
     args = parse_args(argv)
+    
+    # Debug-Modus aktivieren
+    if args.debug:
+        logging.getLogger().setLevel(logging.DEBUG)
+        _LOG.info("Debug-Modus aktiviert")
+    
     # Sicherstellen, dass die Multiprocessing-Startmethode kompatibel ist
     try:
         if platform.system() == 'Windows':
@@ -157,7 +178,7 @@ def main(argv=None):
         _LOG.warning(f"Multiprocessing-Startmethode konnte nicht gesetzt werden: {str(e)}")
     
     # Initialisiere alle Komponenten
-    brain, mm, pm, autonomous_loop = build_components(enable_autonomy=args.enable_autonomy)
+    brain, mm, pm, autonomous_loop, user_manager = build_components(enable_autonomy=args.enable_autonomy)
 
     # Plugins aus dem plugins/ Verzeichnis laden
     try:
@@ -170,16 +191,16 @@ def main(argv=None):
     brain.start()
     
     # Starte den autonomen Lernzyklus, wenn aktiviert und erfolgreich initialisiert
-    autonomy_thread = None
     if args.enable_autonomy and autonomous_loop is not None:
         _LOG.info("Aktiviere autonomen Lernzyklus...")
-        autonomy_thread = threading.Thread(target=autonomous_loop.start, daemon=True)
-        autonomy_thread.start()
+        autonomous_loop.start()
     
     if args.no_start:
         _LOG.info("System initialisiert (no-start). AIBrain läuft im Hintergrund. Exit.")
         return
 
+    # Starte die API, falls gewünscht
+    api_thread = None
     if args.start_rest:
         app = create_app(brain, mm, pm)
         _LOG.info("Starting REST API on %s:%d", args.api_host, args.api_port)
@@ -194,7 +215,6 @@ def main(argv=None):
         api_thread.start()
     else:
         _LOG.info("No API selected. Running in background. Use --start-rest or --start-ws to start servers.")
-        api_thread = None
     
     # Haupt-Loop für das Warten auf Beendigung
     try:
@@ -218,9 +238,6 @@ def main(argv=None):
     if args.enable_autonomy and autonomous_loop is not None and autonomous_loop.active:
         _LOG.info("Deaktiviere autonomen Lernzyklus...")
         autonomous_loop.stop()
-        # Warte kurz, bis der Loop beendet ist
-        if autonomy_thread:
-            autonomy_thread.join(timeout=5.0)
     
     # Stoppe das Gehirn
     brain.stop()

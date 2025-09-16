@@ -1,11 +1,13 @@
 fastapi>=0.95
 uvicorn[standard]>=0.22
-python-multipart>=0.0.6
+uvicorn>=0.23.2
+python-multipart>=0.0.9
 pydantic>=1.10
 psutil>=5.9
 zstandard>=0.19
 pyyaml>=6.0
 numpy>=1.24
+PyJWT>=2.8.0
 cryptography>=40.0
 pillow>=9.0
 soundfile>=0.12
@@ -22,3 +24,5 @@ scikit-learn
 accelerate
 peft
 bitsandbytes
+passlib
+bcrypt
