@@ -93,7 +93,7 @@ class UserManager:
         )
         
         # Hole den neu erstellten Benutzer
-        user = self.kb.query(
+        user = self.kb.select(
             "SELECT id, username, is_admin, created_at FROM users WHERE username = ?",
             (username,)
         )[0]
@@ -115,16 +115,13 @@ class UserManager:
         # Hashe das neue Passwort
         password_hash = pwd_context.hash(new_password)
         
-        # Aktualisiere das Passwort und prüfe, ob eine Zeile betroffen ist
-        cursor = self.kb.conn.cursor()
-        cursor.execute(
+        # Aktualisiere das Passwort
+        result = self.kb.query(
             "UPDATE users SET password_hash = ? WHERE username = ?",
             (password_hash, username)
         )
-        self.kb.conn.commit()
         
-        # Überprüfe, ob eine Zeile aktualisiert wurde
-        if cursor.rowcount > 0:
+        if result > 0:
             logger.info(f"Passwort für Benutzer '{username}' aktualisiert")
             return True
         else:
@@ -142,14 +139,12 @@ class UserManager:
         Returns:
             bool: True, wenn erfolgreich, sonst False
         """
-        cursor = self.kb.conn.cursor()
-        cursor.execute(
+        result = self.kb.query(
             "UPDATE users SET is_admin = ? WHERE username = ?",
             (int(is_admin), username)
         )
-        self.kb.conn.commit()
         
-        if cursor.rowcount > 0:
+        if result > 0:
             status = "Admin" if is_admin else "kein Admin"
             logger.info(f"Benutzer '{username}' ist jetzt {status}")
             return True
@@ -169,7 +164,7 @@ class UserManager:
             Optional[Dict[str, Any]]: Benutzerdaten, falls erfolgreich, sonst None
         """
         # Hole Benutzer aus der Datenbank
-        users = self.kb.query(
+        users = self.kb.select(
             "SELECT id, username, password_hash, is_admin, created_at FROM users WHERE username = ?",
             (username,)
         )
@@ -208,7 +203,7 @@ class UserManager:
         Returns:
             Optional[Dict[str, Any]]: Benutzerdaten, falls gefunden, sonst None
         """
-        users = self.kb.query(
+        users = self.kb.select(
             "SELECT id, username, is_admin, created_at, last_login FROM users WHERE username = ?",
             (username,)
         )
@@ -222,7 +217,7 @@ class UserManager:
         Returns:
             List[Dict[str, Any]]: Liste aller Benutzer
         """
-        return self.kb.query(
+        return self.kb.select(
             "SELECT id, username, is_admin, created_at, last_login FROM users ORDER BY created_at DESC"
         )
     
@@ -236,14 +231,12 @@ class UserManager:
         Returns:
             bool: True, wenn erfolgreich, sonst False
         """
-        cursor = self.kb.conn.cursor()
-        cursor.execute(
+        result = self.kb.query(
             "DELETE FROM users WHERE username = ?",
             (username,)
         )
-        self.kb.conn.commit()
         
-        if cursor.rowcount > 0:
+        if result > 0:
             logger.info(f"Benutzer '{username}' gelöscht")
             return True
         else:

@@ -69,7 +69,7 @@ def create_access_token(data: dict, expires_delta: Optional[int] = None) -> str:
     Erstellt ein neues JWT-Access-Token
     
     Args:
-         Die Daten, die im Token gespeichert werden sollen
+        data: Die Daten, die im Token gespeichert werden sollen
         expires_delta: Optionale Ablauffrist in Minuten
         
     Returns:
@@ -198,13 +198,13 @@ def create_app(ai_engine: AIBrain, model_manager: ModelManager, plugin_manager: 
         # Wissensdatenbank abfragen
         kb = ai_engine.knowledge_base
         if category:
-            entries = kb.query(
-                "SELECT encrypted_data, id, category, timestamp, metadata FROM knowledge WHERE category = ? ORDER BY timestamp DESC LIMIT ?",
+            entries = kb.select(
+                "SELECT id, username, password_hash, is_admin, created_at, last_login FROM users WHERE category = ? ORDER BY timestamp DESC LIMIT ?",
                 (category, limit)
             )
         else:
-            entries = kb.query(
-                "SELECT encrypted_data, id, category, timestamp, metadata FROM knowledge ORDER BY timestamp DESC LIMIT ?",
+            entries = kb.select(
+                "SELECT id, username, password_hash, is_admin, created_at, last_login FROM users ORDER BY timestamp DESC LIMIT ?",
                 (limit,)
             )
         
@@ -241,14 +241,14 @@ def create_app(ai_engine: AIBrain, model_manager: ModelManager, plugin_manager: 
             
             # Erstelle ein Token
             access_token = create_access_token(
-                data={"sub": username, "is_admin": bool(user["is_admin"])}  # WICHTIG: Konvertiere zu Boolean
+                data={"sub": username, "is_admin": bool(user["is_admin"])}
             )
             
             return {
                 "token": access_token,
                 "token_type": "bearer",
                 "expires_in": ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-                "is_admin": bool(user["is_admin"])  # WICHTIG: Konvertiere zu Boolean
+                "is_admin": bool(user["is_admin"])
             }
         except Exception as e:
             logger.error(f"Fehler bei der Authentifizierung: {str(e)}", exc_info=True)
@@ -270,7 +270,7 @@ def create_app(ai_engine: AIBrain, model_manager: ModelManager, plugin_manager: 
         """
         # Hole Benutzer aus der Datenbank
         kb = ai_engine.knowledge_base
-        users = kb.query(
+        users = kb.select(
             "SELECT id, username, password_hash, is_admin, created_at FROM users WHERE username = ?",
             (username,)
         )
@@ -315,7 +315,7 @@ def create_app(ai_engine: AIBrain, model_manager: ModelManager, plugin_manager: 
         
         # Hole Benutzer aus der Datenbank
         kb = ai_engine.knowledge_base
-        users = kb.query(
+        users = kb.select(
             "SELECT id, username, is_admin, created_at, last_login FROM users ORDER BY created_at DESC"
         )
         
@@ -324,7 +324,7 @@ def create_app(ai_engine: AIBrain, model_manager: ModelManager, plugin_manager: 
                 {
                     "id": user["id"],
                     "username": user["username"],
-                    "is_admin": bool(user["is_admin"]),  # Konvertiere zu Boolean für die Ausgabe
+                    "is_admin": bool(user["is_admin"]),
                     "created_at": user["created_at"],
                     "last_login": user["last_login"]
                 }
