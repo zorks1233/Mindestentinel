@@ -25,7 +25,16 @@ import logging
 import uvicorn
 import threading
 import time
-from typing import Optional, Tuple
+import sys
+from typing import Optional, Tuple, List
+
+# Setze PYTHONPATH automatisch auf das Projekt-Root, falls nicht gesetzt
+if "PYTHONPATH" not in os.environ:
+    # Bestimme das Projekt-Root (angenommen, dass src/ im Projekt-Root liegt)
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    os.environ["PYTHONPATH"] = project_root
+    sys.path.insert(0, project_root)
+    logging.info(f"PYTHONPATH automatisch gesetzt auf: {project_root}")
 
 # Import des AutonomousLoop Moduls
 try:
@@ -51,6 +60,55 @@ from src.core.user_manager import UserManager
 # Setze Logging vor allen anderen Initialisierungen
 setup_logging()
 _LOG = logging.getLogger("mindestentinel.main")
+
+def handle_admin_commands():
+    """Verarbeitet Admin-Befehle direkt."""
+    # Entferne das erste Argument (main.py)
+    args = sys.argv[1:]
+    
+    # Prüfe, ob es ein Admin-Befehl ist
+    if len(args) > 0 and args[0] == "admin":
+        # Entferne "admin"
+        args = args[1:]
+        
+        # Prüfe, ob es ein Benutzer-Befehl ist
+        if len(args) > 0 and args[0] == "users":
+            # Entferne "users"
+            args = args[1:]
+            
+            # Bestimme das Skript-Verzeichnis
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            project_root = os.path.dirname(script_dir)
+            
+            # Stelle sicher, dass PYTHONPATH gesetzt ist
+            if "PYTHONPATH" not in os.environ:
+                os.environ["PYTHONPATH"] = project_root
+                sys.path.insert(0, project_root)
+            
+            # Importiere das Benutzermanagement-Skript
+            try:
+                from admin_console.commands.manage_users import main as users_main
+                
+                # Speichere das aktuelle sys.argv
+                original_argv = sys.argv
+                
+                try:
+                    # Setze sys.argv auf das Skript-Name + args
+                    # Der erste Wert ist der Skriptname (wird von argparse benötigt)
+                    sys.argv = [sys.argv[0]] + args
+                    
+                    # Rufe main ohne Argumente auf (da sie keine Argumente erwartet)
+                    users_main()
+                    
+                    return True
+                finally:
+                    # Stelle das ursprüngliche sys.argv wieder her
+                    sys.argv = original_argv
+            except ImportError as e:
+                _LOG.error(f"Fehler beim Importieren von manage_users.py: {str(e)}")
+                return False
+    
+    return False
 
 def build_components(rules_path: Optional[str] = None, enable_autonomy: bool = False) -> Tuple[AIBrain, ModelManager, PluginManager, Optional['AutonomousLoop'], UserManager]:
     """
@@ -162,8 +220,13 @@ def parse_args(argv=None):
     p.add_argument("--debug", action="store_true", help="Aktiviert Debug-Logging")
     return p.parse_args(argv)
 
-def main(argv=None):
-    args = parse_args(argv)
+def main():
+    """Hauptfunktion des Programms."""
+    # Prüfe, ob es ein Admin-Befehl ist
+    if handle_admin_commands():
+        return
+    
+    args = parse_args()
     
     # Debug-Modus aktivieren
     if args.debug:

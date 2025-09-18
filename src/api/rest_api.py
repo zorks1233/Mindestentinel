@@ -199,13 +199,15 @@ def create_app(ai_engine: AIBrain, model_manager: ModelManager, plugin_manager: 
         kb = ai_engine.knowledge_base
         if category:
             entries = kb.select(
-                "SELECT id, username, password_hash, is_admin, created_at, last_login FROM users WHERE category = ? ORDER BY timestamp DESC LIMIT ?",
-                (category, limit)
+                "SELECT * FROM knowledge WHERE category = ? ORDER BY timestamp DESC LIMIT ?",
+                (category, limit),
+                decrypt_column=2  # encrypted_data ist Spalte 2 (0-basiert)
             )
         else:
             entries = kb.select(
-                "SELECT id, username, password_hash, is_admin, created_at, last_login FROM users ORDER BY timestamp DESC LIMIT ?",
-                (limit,)
+                "SELECT * FROM knowledge ORDER BY timestamp DESC LIMIT ?",
+                (limit,),
+                decrypt_column=2  # encrypted_data ist Spalte 2 (0-basiert)
             )
         
         return {
@@ -268,11 +270,12 @@ def create_app(ai_engine: AIBrain, model_manager: ModelManager, plugin_manager: 
         Returns:
             Optional[Dict]: Benutzerdaten, falls erfolgreich, sonst None
         """
-        # Hole Benutzer aus der Datenbank
+        # Hole Benutzer aus der Datenbank (KEINE Entschlüsselung nötig)
         kb = ai_engine.knowledge_base
         users = kb.select(
             "SELECT id, username, password_hash, is_admin, created_at FROM users WHERE username = ?",
-            (username,)
+            (username,),
+            decrypt_column=None  # Keine Entschlüsselung für Benutzertabelle
         )
         
         if not users:
@@ -313,10 +316,11 @@ def create_app(ai_engine: AIBrain, model_manager: ModelManager, plugin_manager: 
                 detail="Nur Administratoren dürfen Benutzer auflisten"
             )
         
-        # Hole Benutzer aus der Datenbank
+        # Hole Benutzer aus der Datenbank (KEINE Entschlüsselung nötig)
         kb = ai_engine.knowledge_base
         users = kb.select(
-            "SELECT id, username, is_admin, created_at, last_login FROM users ORDER BY created_at DESC"
+            "SELECT id, username, is_admin, created_at, last_login FROM users ORDER BY created_at DESC",
+            decrypt_column=None  # Keine Entschlüsselung für Benutzertabelle
         )
         
         return {

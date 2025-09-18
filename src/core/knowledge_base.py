@@ -10,7 +10,7 @@ import logging
 import sqlite3
 import os
 import json
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 import datetime
 from cryptography.fernet import Fernet
 import base64
@@ -125,14 +125,14 @@ class KnowledgeBase:
             logger.error(f"Fehler bei der Datenbankinitialisierung: {str(e)}", exc_info=True)
             raise
     
-    def store(self, category: str, data: Dict[str, Any], metadata: Optional[Dict[str, Any]] = None) -> int:
+    def store(self, category: str, data: Dict[str, Any], meta: Optional[Dict[str, Any]] = None) -> int:
         """
         Speichert Daten in der Wissensdatenbank.
         
         Args:
             category: Die Kategorie der Daten
             data: Die zu speichernden Daten
-            metadata: Optionale Metadaten
+            meta: Optionale Metadaten
             
         Returns:
             int: Die ID des gespeicherten Eintrags
@@ -142,7 +142,7 @@ class KnowledgeBase:
             encrypted_data = self._encrypt_data(data)
             
             # Vorbereiten der Metadaten
-            metadata_json = json.dumps(metadata) if metadata else None
+            metadata_json = json.dumps(meta) if meta else None
             
             # Speichere in der Datenbank
             conn = sqlite3.connect(self.db_path)
@@ -190,36 +190,47 @@ class KnowledgeBase:
             logger.error(f"Fehler bei der Datenbankabfrage: {str(e)}", exc_info=True)
             raise
     
-    def select(self, sql: str, params: tuple = ()) -> List[Dict[str, Any]]:
+    def select(self, sql: str, params: tuple = (), decrypt_column: Optional[int] = 2) -> List[Dict[str, Any]]:
         """
-        Führt eine SELECT-Abfrage auf der Datenbank aus und entschlüsselt die Ergebnisse.
+        Führt eine SELECT-Abfrage auf der Datenbank aus und entschlüsselt optionale Spalten.
         
         Args:
             sql: Die SQL-Abfrage
             params: Optionale Parameter für die Abfrage
+            decrypt_column: Die Spalte, die entschlüsselt werden soll (None für keine Entschlüsselung)
             
         Returns:
-            List[Dict[str, Any]]: Die entschlüsselten Ergebnisse
+            List[Dict[str, Any]]: Die Ergebnisse als Dictionary mit Spaltennamen
         """
         try:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
             cursor.execute(sql, params)
             
+            # Hole die Spaltennamen
+            column_names = [description[0] for description in cursor.description]
+            
             results = []
             for row in cursor.fetchall():
-                # Entschlüssle die Daten (angenommen, dass encrypted_data in Spalte 0 ist)
-                decrypted_data = self._decrypt_data(row[0])
+                result = {}
                 
-                # Erstelle das Ergebnis-Dictionary
-                result = {
-                    "id": row[1] if len(row) > 1 else None,
-                    "username": row[2] if len(row) > 2 else None,
-                    "password_hash": row[3] if len(row) > 3 else None,
-                    "is_admin": row[4] if len(row) > 4 else None,
-                    "created_at": row[5] if len(row) > 5 else None,
-                    "last_login": row[6] if len(row) > 6 else None
-                }
+                # Verarbeite jede Spalte
+                for i, value in enumerate(row):
+                    column_name = column_names[i]
+                    
+                    # Soll die Spalte entschlüsselt werden?
+                    if i == decrypt_column:
+                        try:
+                            # Entschlüssle die Daten
+                            decrypted_data = self._decrypt_data(value)
+                            result[column_name] = decrypted_data
+                        except Exception as e:
+                            logger.error(f"Fehler bei der Datenentschlüsselung für Spalte {column_name}: {str(e)}", exc_info=True)
+                            result[column_name] = None
+                    else:
+                        # Verwende die Rohdaten
+                        result[column_name] = value
+                
                 results.append(result)
             
             conn.close()
@@ -337,6 +348,10 @@ class KnowledgeBase:
             Dict[str, Any]: Die entschlüsselten Daten
         """
         try:
+            # Sicherstellen, dass encrypted_data Bytes sind
+            if isinstance(encrypted_data, str):
+                encrypted_data = encrypted_data.encode('utf-8')
+            
             # Entschlüssle die Daten
             decrypted_data = self.cipher.decrypt(encrypted_data)
             

@@ -73,10 +73,11 @@ class UserManager:
         Raises:
             ValueError: Wenn der Benutzername bereits existiert
         """
-        # Prüfe, ob Benutzer bereits existiert
-        existing = self.kb.query(
+        # PRÜFE MIT SELECT, NICHT MIT QUERY - WICHTIGE KORREKTUR
+        existing = self.kb.select(
             "SELECT id FROM users WHERE username = ?",
-            (username,)
+            (username,),
+            decrypt_column=None
         )
         
         if existing:
@@ -95,7 +96,8 @@ class UserManager:
         # Hole den neu erstellten Benutzer
         user = self.kb.select(
             "SELECT id, username, is_admin, created_at FROM users WHERE username = ?",
-            (username,)
+            (username,),
+            decrypt_column=None
         )[0]
         
         logger.info(f"Benutzer '{username}' erstellt. Admin: {is_admin}")
@@ -112,6 +114,19 @@ class UserManager:
         Returns:
             bool: True, wenn erfolgreich, sonst False
         """
+        logger.info(f"Versuche, Passwort für Benutzer '{username}' zu aktualisieren...")
+        
+        # PRÜFE MIT SELECT, NICHT MIT QUERY - WICHTIGE KORREKTUR
+        existing = self.kb.select(
+            "SELECT id FROM users WHERE username = ?",
+            (username,),
+            decrypt_column=None
+        )
+        
+        if not existing:
+            logger.error(f"Benutzer '{username}' existiert nicht")
+            return False
+        
         # Hashe das neue Passwort
         password_hash = pwd_context.hash(new_password)
         
@@ -121,7 +136,11 @@ class UserManager:
             (password_hash, username)
         )
         
-        if result > 0:
+        logger.info(f"Anzahl betroffener Zeilen: {result}")
+        
+        # Wichtig: Bei SQLite gibt rowcount 0 zurück, wenn sich der Wert nicht ändert
+        # Wir prüfen daher explizit, ob der Benutzer existiert
+        if result >= 0:
             logger.info(f"Passwort für Benutzer '{username}' aktualisiert")
             return True
         else:
@@ -166,7 +185,8 @@ class UserManager:
         # Hole Benutzer aus der Datenbank
         users = self.kb.select(
             "SELECT id, username, password_hash, is_admin, created_at FROM users WHERE username = ?",
-            (username,)
+            (username,),
+            decrypt_column=None
         )
         
         if not users:
@@ -205,7 +225,8 @@ class UserManager:
         """
         users = self.kb.select(
             "SELECT id, username, is_admin, created_at, last_login FROM users WHERE username = ?",
-            (username,)
+            (username,),
+            decrypt_column=None
         )
         
         return users[0] if users else None
@@ -218,7 +239,8 @@ class UserManager:
             List[Dict[str, Any]]: Liste aller Benutzer
         """
         return self.kb.select(
-            "SELECT id, username, is_admin, created_at, last_login FROM users ORDER BY created_at DESC"
+            "SELECT id, username, is_admin, created_at, last_login FROM users ORDER BY created_at DESC",
+            decrypt_column=None
         )
     
     def delete_user(self, username: str) -> bool:
