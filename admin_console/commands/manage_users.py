@@ -7,6 +7,16 @@ import argparse
 from src.core.user_manager import UserManager
 from src.core.knowledge_base import KnowledgeBase
 import logging
+import os
+import sys
+
+# Setze PYTHONPATH automatisch auf das Projekt-Root, falls nicht gesetzt
+if "PYTHONPATH" not in os.environ:
+    # Bestimme das Projekt-Root (angenommen, dass src/ im Projekt-Root liegt)
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    os.environ["PYTHONPATH"] = project_root
+    sys.path.insert(0, project_root)
+    logging.info(f"PYTHONPATH automatisch gesetzt auf: {project_root}")
 
 # Setze Logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
