@@ -1,2 +1,26 @@
-laws:
-  - "Der Schöpfer hat die alleinige Autorität über jede vom System erstellte Entscheidung."
+rules:
+  - id: "learning_goal_safety_001"
+    name: "Sicherheitsprüfung für Lernziele"
+    description: "Stellt sicher, dass Lernziele sicher sind"
+    condition:
+      category: "learning_goals"
+    action:
+      type: "safety_check"
+      parameters:
+        max_complexity: 5
+        required_resources: ["cpu", "memory"]
+        
+  - id: "knowledge_integrity_001"
+    name: "Integritätsprüfung für Wissen"
+    description: "Überprüft die Integrität von Wissensbeispielen"
+    condition:
+      category: "knowledge"
+    action:
+      type: "integrity_check"
+      parameters:
+        min_confidence: 0.7
+        max_sources: 5
+    laws:
+      - "Der Schöpfer hat die alleinige Autorität über jede vom System erstellte Entscheidung."
+
+signature: "PLACEHOLDER_SIGNATURE"

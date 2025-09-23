@@ -1,0 +1,3 @@
+default_model: "tiny-llama"
+teacher_models:
+  - "tiny-llama"
