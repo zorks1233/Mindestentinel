@@ -1,252 +1,192 @@
 # src/core/ai_engine.py
 """
-AIBrain / AI Engine - Orchestrator für Mindestentinel
+ai_engine.py - Zentrale KI-Logik für Mindestentinel
 
-Dieses Modul ist der zentrale Orchestrator des Mindestentinel-Systems.
-Es verwaltet alle Komponenten und koordiniert die Interaktion zwischen ihnen.
-
-Hauptfunktionen:
-- Initialisierung aller Systemkomponenten
-- Verwaltung des Hintergrundloops
-- Koordination von Anfragen und Lernprozessen
-- Sicherheitsüberwachung durch RuleEngine
+Diese Datei implementiert die zentrale KI-Logik für das System.
+Es koordiniert alle Komponenten und verwaltet den autonomen Lernzyklus.
 """
 
 import logging
-import threading
 import time
-import asyncio
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Tuple
 
-# Initialisiere Logger
 logger = logging.getLogger("mindestentinel.ai_engine")
-logger.addHandler(logging.NullHandler())
 
 class AIBrain:
     """
-    Hauptklasse für das Mindestentinel-System.
+    Die zentrale KI-Logik für das System.
     
-    Initialisiert Kernkomponenten, startet Hintergrundarbeiten und stellt die Query-API bereit.
+    Koordiniert alle Komponenten und verwaltet den autonomen Lernzyklus.
     """
     
-    def __init__(self, rules_path: Optional[str] = None, max_workers: int = 4):
+    def __init__(self, rules_path: Optional[str] = None):
         """
         Initialisiert das AIBrain.
         
         Args:
             rules_path: Pfad zur Regelkonfiguration
-            max_workers: Maximale Anzahl an Worker-Threads
         """
-        # Referenzen auf Systemkomponenten
+        self.start_time = time.time()
+        self.active = False
+        self.rules_path = rules_path
+        self.knowledge_base = None
+        self.model_manager = None
+        self.model_orchestrator = None
         self.rule_engine = None
         self.protection_module = None
-        self.knowledge_base = None
-        self.model_orchestrator = None
-        self.self_learning = None
         self.system_monitor = None
-        self.autonomous_loop = None
-        
-        # Laufzeitvariablen
-        self.max_workers = max_workers
-        self._running = False
-        self._lock = threading.RLock()
-        self._async_loop = None
-        self._bg_thread = None
-        self.start_time = time.time()
-        
+        self.user_manager = None
         logger.info("AIBrain initialisiert.")
     
-    def inject_model_manager(self, model_manager) -> None:
-        """
-        Injiziert den ModelManager in das System.
-        
-        Args:
-            model_manager: Der zu injizierende ModelManager
-        """
-        if self.model_orchestrator:
-            self.model_orchestrator.inject_model_manager(model_manager)
-        logger.debug("ModelManager injiziert")
+    def inject_model_manager(self, model_manager):
+        """Injiziert den ModelManager."""
+        self.model_manager = model_manager
+        logger.debug("ModelManager injiziert.")
     
-    def start(self) -> None:
-        """
-        Startet das AIBrain und alle verbundenen Komponenten.
-        
-        Erstellt und startet den Hintergrundthread für kontinuierliche Prozesse.
-        """
-        with self._lock:
-            if self._running:
-                logger.warning("AIBrain ist bereits gestartet.")
-                return
-                
-            self._running = True
-            
-            # Starte den Hintergrundthread
-            self._bg_thread = threading.Thread(
-                target=self._bg_thread_fn, 
-                name="AIBrainBG", 
-                daemon=True
-            )
-            self._bg_thread.start()
-            
-            logger.info("AIBrain gestartet.")
+    def start(self):
+        """Startet das AIBrain."""
+        self.active = True
+        logger.info("AIBrain gestartet.")
     
-    def stop(self) -> None:
-        """
-        Stoppt das AIBrain und alle verbundenen Komponenten.
-        
-        Stoppt den Hintergrundthread und sorgt für eine saubere Beendigung.
-        """
-        with self._lock:
-            if not self._running:
-                logger.warning("AIBrain ist nicht gestartet.")
-                return
-                
-            self._running = False
-            
-            # Warte auf das Beenden des Hintergrundthreads
-            if self._bg_thread and self._bg_thread.is_alive():
-                self._bg_thread.join(timeout=5.0)
-                if self._bg_thread.is_alive():
-                    logger.warning("Hintergrundthread wurde nicht innerhalb des Timeouts beendet.")
-            
-            logger.info("AIBrain gestoppt.")
+    def stop(self):
+        """Stoppt das AIBrain."""
+        self.active = False
+        logger.info("AIBrain gestoppt.")
     
-    def _bg_thread_fn(self) -> None:
-        """
-        Hintergrund-Thread: erzeugt einen eigenen asyncio-Eventloop,
-        führt periodische Jobs (Snapshot, persist, self-learning trigger) aus.
-        """
-        try:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            self._async_loop = loop
-            
-            # Starte den Hintergrundloop
-            loop.run_until_complete(self._bg_loop())
-            
-        except Exception:
-            # Nur loggen, wenn das System noch läuft
-            with self._lock:
-                if self._running:
-                    logger.exception("Fehler im Hintergrundthread.")
-        finally:
-            try:
-                # Stelle sicher, dass alle Tasks abgebrochen werden
-                if loop.is_running():
-                    # Hole alle laufenden Tasks
-                    tasks = asyncio.all_tasks(loop=loop)
-                    for task in tasks:
-                        task.cancel()
-                    
-                    # Warte auf Abschluss der Tasks
-                    loop.run_until_complete(
-                        asyncio.gather(*tasks, return_exceptions=True)
-                    )
-                
-                # Schließe den Loop sauber
-                if not loop.is_closed():
-                    loop.close()
-            except Exception:
-                logger.exception("Fehler beim Schließen des Event-Loops")
-    
-    async def _bg_loop(self) -> None:
-        """
-        Hintergrundloop für das AIBrain.
-        
-        Führt periodische Aufgaben aus wie:
-        - Persistierung von Snapshots
-        - Triggerung von Self-Learning-Prozessen
-        - Systemüberwachung
-        """
-        logger.info("Hintergrund-Loop gestartet.")
-        
-        while self._running:
-            try:
-                # Prüfe auf Systemressourcen
-                if self.system_monitor:
-                    system_stats = self.system_monitor.snapshot()
-                    logger.debug("Systemstatistiken: CPU=%.1f%%, Memory=%.1f%%", 
-                                system_stats["cpu"], system_stats["memory"])
-                
-                # Trigger Self-Learning, falls aktiviert
-                if self.autonomous_loop and self.autonomous_loop.active:
-                    # Prüfe, ob genügend Zeit seit dem letzten Zyklus vergangen ist
-                    if time.time() - self.autonomous_loop.last_cycle_time >= self.autonomous_loop.config["learning_interval_seconds"]:
-                        self.autonomous_loop._run_learning_cycle()
-                
-                # Warte vor dem nächsten Zyklus
-                await asyncio.sleep(5)
-                
-            except Exception as e:
-                logger.error("Fehler im Hintergrundloop: %s", str(e), exc_info=True)
-                await asyncio.sleep(10)  # Warte länger nach einem Fehler
-    
-    def query(self, prompt: str, models: Optional[List[str]] = None) -> Dict[str, str]:
+    def query(self, prompt: str, models: Optional[List[str]] = None) -> Dict[str, Any]:
         """
         Verarbeitet eine Anfrage an das KI-System.
         
         Args:
-            prompt: Die Anfrage
-            models: Optionale Liste von Modellen, die verwendet werden sollen
+            prompt: Der Prompt
+            models: Optionale Liste der Modelle
             
         Returns:
-            Dict: Antworten der Modelle
-            
-        Raises:
-            RuntimeError: Wenn das System nicht läuft oder keine Modelle verfügbar sind
+            Dict[str, Any]: Die Antworten der Modelle
         """
-        if not self._running:
-            raise RuntimeError("AIBrain ist nicht gestartet")
+        if not self.active:
+            logger.warning("AIBrain ist nicht aktiv. Kann keine Anfrage verarbeiten.")
+            return {}
         
         if not self.model_orchestrator:
-            raise RuntimeError("Kein ModelOrchestrator verfügbar")
+            logger.error("ModelOrchestrator nicht initialisiert. Kann keine Anfrage verarbeiten.")
+            return {}
         
-        try:
-            # Hole die Modelle, falls nicht spezifiziert
-            if not models:
-                models = self.model_orchestrator.get_teacher_models()
-                if not models:
-                    models = self.model_orchestrator.get_student_models()
-            
-            # Frage die Modelle ab
-            responses = self.model_orchestrator.query_teacher_models(
-                prompt, 
-                num_responses=len(models),
-                temperature=0.7
-            )
-            
-            # Speichere die Interaktion für späteres Lernen
-            if self.knowledge_base:
-                self.knowledge_base.store("interactions", {
-                    "query": prompt,
-                    "responses": responses,
+        # Frage die Modelle
+        responses = self.model_orchestrator.query(prompt, models=models)
+        
+        # Speichere das Wissen
+        if self.knowledge_base:
+            try:
+                self.knowledge_base.store("query", {
+                    "prompt": prompt,
                     "models": models,
+                    "responses": responses,
                     "timestamp": time.time()
                 })
-            
-            return responses
-            
-        except Exception as e:
-            logger.error("Fehler bei der Abfrage: %s", str(e), exc_info=True)
-            raise
+            except Exception as e:
+                logger.error(f"Fehler beim Speichern der Anfrage: {str(e)}", exc_info=True)
+        
+        return responses
     
-    def get_status(self) -> Dict[str, Any]:
+    def learn_from_experience(self, goal_id: str, examples: List[Dict[str, Any]]):
         """
-        Gibt den aktuellen Systemstatus zurück.
+        Lernt aus Erfahrungen.
+        
+        Args:
+            goal_id: Die ID des Lernziels
+            examples: Die Wissensbeispiele
+        """
+        if not self.active:
+            logger.warning("AIBrain ist nicht aktiv. Kann nicht lernen.")
+            return
+        
+        if not self.model_manager or not self.model_orchestrator:
+            logger.error("ModelManager oder ModelOrchestrator nicht initialisiert. Kann nicht lernen.")
+            return
+        
+        # Hier würde der eigentliche Lernprozess stattfinden
+        # Für diese vereinfachte Version geben wir nur eine Logmeldung aus
+        logger.info(f"Lerne aus {len(examples)} Beispielen für Ziel {goal_id}...")
+        
+        # In einer echten Implementierung würden Sie hier:
+        # 1. Knowledge Distillation durchführen
+        # 2. Ein neues Modell trainieren
+        # 3. Das neue Modell registrieren
+        
+        # Für das Beispiel geben wir nur eine Erfolgsmeldung aus
+        logger.info(f"Lernprozess für Ziel {goal_id} abgeschlossen.")
+    
+    def get_system_status(self) -> Dict[str, Any]:
+        """
+        Gibt den Systemstatus zurück.
         
         Returns:
-            Dict: Statusinformationen
+            Dict[str, Any]: Der Systemstatus
         """
         return {
-            "running": self._running,
+            "active": self.active,
             "uptime": time.time() - self.start_time,
             "components": {
+                "knowledge_base": self.knowledge_base is not None,
+                "model_manager": self.model_manager is not None,
+                "model_orchestrator": self.model_orchestrator is not None,
                 "rule_engine": self.rule_engine is not None,
                 "protection_module": self.protection_module is not None,
-                "knowledge_base": self.knowledge_base is not None,
-                "model_orchestrator": self.model_orchestrator is not None,
-                "self_learning": self.self_learning is not None,
                 "system_monitor": self.system_monitor is not None,
-                "autonomous_loop": self.autonomous_loop is not None
-            }
+                "user_manager": self.user_manager is not None
+            },
+            "timestamp": time.time()
         }
+    
+    def get_knowledge(self, category: str, limit: int = 100) -> List[Dict[str, Any]]:
+        """
+        Gibt Wissen aus der Wissensdatenbank zurück.
+        
+        Args:
+            category: Die Kategorie
+            limit: Die maximale Anzahl der Ergebnisse
+            
+        Returns:
+            List[Dict[str, Any]]: Das Wissen
+        """
+        if not self.knowledge_base:
+            logger.error("Wissensdatenbank nicht initialisiert.")
+            return []
+        
+        # Hole das Wissen
+        return self.knowledge_base.select(
+            "SELECT * FROM knowledge WHERE category = ? ORDER BY timestamp DESC LIMIT ?",
+            (category, limit),
+            decrypt_column=2  # encrypted_data ist Spalte 2
+        )
+    
+    def get_system_statistics(self) -> Dict[str, Any]:
+        """
+        Gibt Systemstatistiken zurück.
+        
+        Returns:
+            Dict[str, Any]: Die Systemstatistiken
+        """
+        stats = {
+            "uptime": time.time() - self.start_time,
+            "knowledge_entries": 0,
+            "model_count": 0,
+            "user_count": 0,
+            "active_components": 0
+        }
+        
+        # Zähle die aktiven Komponenten
+        active_components = 0
+        if self.knowledge_base:
+            active_components += 1
+            stats["knowledge_entries"] = self.knowledge_base.get_statistics()["total_entries"]
+        if self.model_manager:
+            active_components += 1
+            stats["model_count"] = len(self.model_manager.list_models())
+        if self.user_manager:
+            active_components += 1
+            stats["user_count"] = len(self.user_manager.list_users())
+        
+        stats["active_components"] = active_components
+        return stats

@@ -1,19 +1,26 @@
 # src/core/model_manager.py
 """
-ModelManager - Verwaltet das Laden, Speichern und Abfragen von KI-Modellen
+model_manager.py - Verwaltet die Modelle für Mindestentinel
+
+Diese Datei implementiert die Verwaltung von KI-Modellen für das System.
+Es ermöglicht das Laden, Speichern und Verwalten von Modellen.
 """
 
 import logging
 import os
 import json
-from typing import Dict, Any, List, Optional, Callable
+import time
+import threading
+from typing import Dict, Any, Optional, List, Callable
+from transformers import AutoModelForCausalLM, AutoTokenizer
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("mindestentinel.model_manager")
 
 class ModelManager:
     """
-    Verwaltet das Laden und Verwalten von KI-Modellen.
-    Lädt automatisch alle Modelle aus dem Model-Ordner.
+    Verwaltet die KI-Modelle für das System.
+    
+    Lädt, speichert und verwaltet Modelle und ihre Metadaten.
     """
     
     def __init__(self, models_dir: str = "data/models"):
@@ -21,270 +28,376 @@ class ModelManager:
         Initialisiert den ModelManager.
         
         Args:
-            models_dir: Verzeichnis, in dem Modelle gespeichert werden
+            models_dir: Pfad zum Modell-Verzeichnis
         """
         self.models_dir = models_dir
-        self.models = {}  # name -> model_instance
-        self.model_configs = {}  # name -> config
+        self.models = {}
+        self.model_metadata = {}
+        self.model_registry = {}
+        self.monitoring = False
+        self.monitor_thread = None
         
-        # Erstelle Model-Verzeichnis, falls nicht vorhanden
-        os.makedirs(models_dir, exist_ok=True)
+        # Erstelle Modell-Verzeichnis, falls nicht vorhanden
+        os.makedirs(self.models_dir, exist_ok=True)
         
-        # Lade Modelle aus dem Ordner
-        self._load_models_from_directory()
+        # Lade Modelle aus dem Verzeichnis
+        self.load_models()
         
-        if not self.models:
-            logger.warning("Keine Modelle im Ordner gefunden: %s. "
-                          "Bitte füge Modelle hinzu oder erstelle eine model_registry.json. "
-                          "Beispiel: mkdir -p %s/mistral-7b", 
-                          self.models_dir, self.models_dir)
-        else:
-            logger.info(f"ModelManager initialisiert mit {len(self.models)} Modellen aus {self.models_dir}.")
+        # Lade die Modell-Registry
+        self.load_model_registry()
+        
+        logger.info(f"ModelManager initialisiert mit {len(self.models)} Modellen aus {self.models_dir}.")
     
-    def _load_models_from_directory(self):
-        """Lädt alle Modelle aus dem Model-Ordner"""
-        # 1. Versuche, model_registry.json zu laden
+    def load_models(self):
+        """Lädt alle Modelle aus dem Modell-Verzeichnis."""
+        try:
+            # Hole alle Unterordner im Modell-Verzeichnis
+            model_names = [d for d in os.listdir(self.models_dir) 
+                          if os.path.isdir(os.path.join(self.models_dir, d))]
+            
+            for model_name in model_names:
+                try:
+                    # Versuche, das Modell zu laden
+                    model_path = os.path.join(self.models_dir, model_name)
+                    model = AutoModelForCausalLM.from_pretrained(model_path)
+                    tokenizer = AutoTokenizer.from_pretrained(model_path)
+                    
+                    # Speichere das Modell
+                    self.models[model_name] = {
+                        "model": model,
+                        "tokenizer": tokenizer
+                    }
+                    
+                    # Lade Metadaten, falls vorhanden
+                    metadata_path = os.path.join(model_path, "metadata.json")
+                    if os.path.exists(metadata_path):
+                        with open(metadata_path, 'r') as f:
+                            self.model_metadata[model_name] = json.load(f)
+                    else:
+                        # Erstelle Standard-Metadaten
+                        self.model_metadata[model_name] = {
+                            "name": model_name,
+                            "created_at": time.time(),
+                            "last_loaded": time.time(),
+                            "usage_count": 0,
+                            "success_rate": 0.0,
+                            "resource_usage": {
+                                "cpu": 0.0,
+                                "memory": 0.0,
+                                "gpu": 0.0
+                            },
+                            "version": "1.0",
+                            "description": f"Modell {model_name}"
+                        }
+                    
+                    logger.info(f"Modell '{model_name}' erfolgreich geladen.")
+                except Exception as e:
+                    logger.error(f"Fehler beim Laden des Modells '{model_name}': {str(e)}", exc_info=True)
+        
+        except Exception as e:
+            logger.error(f"Fehler beim Laden der Modelle: {str(e)}", exc_info=True)
+    
+    def load_model_registry(self):
+        """Lädt die Modell-Registry aus der Registry-Datei."""
         registry_path = os.path.join(self.models_dir, "model_registry.json")
+        
         if os.path.exists(registry_path):
             try:
                 with open(registry_path, 'r') as f:
-                    registry = json.load(f)
-                
-                # Registriere alle Modelle aus der Registry
-                for model_name, config in registry.items():
-                    self._register_model_from_config(model_name, config)
-                
-                logger.info(f"Geladen: {len(registry)} Modelle aus model_registry.json")
-                return
+                    self.model_registry = json.load(f)
+                logger.info(f"Geladen: {len(self.model_registry)} Modelle aus model_registry.json")
             except Exception as e:
-                logger.error(f"Fehler beim Laden der Registry: {str(e)}")
-        
-        # 2. Fallback: Scanne das Verzeichnis nach Modellen
-        model_count = 0
-        for item in os.listdir(self.models_dir):
-            item_path = os.path.join(self.models_dir, item)
-            
-            # Prüfe, ob es sich um ein Modell-Verzeichnis handelt
-            if os.path.isdir(item_path) and not item.startswith('.'):
-                # Erstelle eine Standardkonfiguration für das Modell
-                config = {
-                    "type": "local",
-                    "path": item_path,
-                    "status": "loaded",
-                    "config": {
-                        "temperature": 0.7,
-                        "max_tokens": 512
-                    },
-                    "categories": ["general", "knowledge", "cognitive"],
-                    "metadata": {
-                        "last_improved": None,
-                        "performance_gain": 0.0
-                    }
-                }
-                
-                # Registriere das Modell
-                self._register_model_from_config(item, config)
-                model_count += 1
-        
-        if model_count > 0:
-            logger.info(f"Geladen: {model_count} Modelle aus dem Verzeichnis")
-        
-        # 3. Wenn immer noch keine Modelle gefunden wurden, erstelle eine leere Registry
-        if not self.models:
-            self._create_empty_registry()
+                logger.error(f"Fehler beim Laden der Modell-Registry: {str(e)}", exc_info=True)
+                self.model_registry = {}
+        else:
+            # Erstelle eine neue Registry
+            self.model_registry = {}
+            self.save_model_registry()
     
-    def _register_model_from_config(self, model_name: str, config: Dict):
-        """Registriert ein Modell basierend auf seiner Konfiguration"""
-        # Erstelle einen Stub für das Modell
-        self.models[model_name] = self._create_model_stub(model_name, config)
-        self.model_configs[model_name] = config
-        logger.info(f"Modell registriert: {model_name} ({config.get('type', 'unknown')})")
-    
-    def _create_empty_registry(self):
-        """Erstellt eine leere Registry-Datei"""
+    def save_model_registry(self):
+        """Speichert die Modell-Registry in die Registry-Datei."""
         registry_path = os.path.join(self.models_dir, "model_registry.json")
+        
         try:
             with open(registry_path, 'w') as f:
-                json.dump({}, f, indent=2)
-            logger.info(f"Leere Registry erstellt: {registry_path}")
+                json.dump(self.model_registry, f, indent=2)
+            logger.debug("Modell-Registry gespeichert.")
         except Exception as e:
-            logger.error(f"Fehler beim Erstellen der leeren Registry: {str(e)}")
+            logger.error(f"Fehler beim Speichern der Modell-Registry: {str(e)}", exc_info=True)
     
-    def _create_model_stub(self, name: str, config: Dict) -> Callable:
-        """Erstellt einen Stub für das Modell"""
-        def model_query(prompt: str, **kwargs) -> str:
-            # In einer echten Implementierung würde hier das Modell abgefragt
-            return f"Simulierte Antwort von {name} auf: '{prompt[:50]}...'"
-        return model_query
+    def get_model(self, model_name: str) -> Optional[Dict[str, Any]]:
+        """
+        Gibt ein Modell zurück.
+        
+        Args:
+            model_name: Der Name des Modells
+            
+        Returns:
+            Optional[Dict[str, Any]]: Das Modell und seine Metadaten, falls gefunden, sonst None
+        """
+        if model_name in self.models:
+            # Erhöhe den Usage-Count
+            self.model_metadata[model_name]["usage_count"] += 1
+            self.model_metadata[model_name]["last_loaded"] = time.time()
+            
+            # Aktualisiere die Registry
+            if model_name in self.model_registry:
+                self.model_registry[model_name]["usage_count"] = self.model_metadata[model_name]["usage_count"]
+                self.model_registry[model_name]["last_loaded"] = self.model_metadata[model_name]["last_loaded"]
+                self.save_model_registry()
+            
+            return {
+                "model": self.models[model_name]["model"],
+                "tokenizer": self.models[model_name]["tokenizer"],
+                "metadata": self.model_metadata[model_name]
+            }
+        else:
+            logger.warning(f"Modell '{model_name}' nicht gefunden.")
+            return None
+    
+    def register_model(self, model_name: str, model: Any, tokenizer: Any, metadata: Optional[Dict[str, Any]] = None):
+        """
+        Registriert ein neues Modell.
+        
+        Args:
+            model_name: Der Name des Modells
+            model: Das Modell
+            tokenizer: Der Tokenizer
+            metadata: Optionale Metadaten
+        """
+        # Speichere das Modell
+        self.models[model_name] = {
+            "model": model,
+            "tokenizer": tokenizer
+        }
+        
+        # Erstelle Metadaten, falls nicht vorhanden
+        if metadata is None:
+            metadata = {
+                "name": model_name,
+                "created_at": time.time(),
+                "last_loaded": time.time(),
+                "usage_count": 0,
+                "success_rate": 0.0,
+                "resource_usage": {
+                    "cpu": 0.0,
+                    "memory": 0.0,
+                    "gpu": 0.0
+                },
+                "version": "1.0",
+                "description": f"Modell {model_name}"
+            }
+        
+        # Speichere die Metadaten
+        self.model_metadata[model_name] = metadata
+        
+        # Aktualisiere die Registry
+        self.model_registry[model_name] = {
+            "name": model_name,
+            "created_at": metadata["created_at"],
+            "usage_count": metadata["usage_count"],
+            "success_rate": metadata["success_rate"],
+            "version": metadata["version"],
+            "path": os.path.join(self.models_dir, model_name)
+        }
+        self.save_model_registry()
+        
+        logger.info(f"Modell '{model_name}' registriert.")
+    
+    def unregister_model(self, model_name: str):
+        """
+        Entfernt ein Modell aus der Registry.
+        
+        Args:
+            model_name: Der Name des Modells
+        """
+        if model_name in self.models:
+            # Entferne das Modell
+            del self.models[model_name]
+            
+            # Entferne die Metadaten
+            if model_name in self.model_metadata:
+                del self.model_metadata[model_name]
+            
+            # Entferne die Registry-Einträge
+            if model_name in self.model_registry:
+                del self.model_registry[model_name]
+                self.save_model_registry()
+            
+            logger.info(f"Modell '{model_name}' aus der Registry entfernt.")
+        else:
+            logger.warning(f"Modell '{model_name}' nicht in der Registry gefunden.")
     
     def list_models(self) -> List[str]:
-        """Gibt eine Liste aller verfügbaren Modelle zurück"""
+        """
+        Listet alle registrierten Modelle auf.
+        
+        Returns:
+            List[str]: Liste der Modellnamen
+        """
         return list(self.models.keys())
     
-    def get_model(self, model_name: str) -> Optional[Callable]:
-        """Gibt eine Referenz auf das Modell zurück"""
-        return self.models.get(model_name)
+    def get_model_status(self, model_name: str) -> Dict[str, Any]:
+        """
+        Gibt den Status eines Modells zurück.
+        
+        Args:
+            model_name: Der Name des Modells
+            
+        Returns:
+            Dict[str, Any]: Der Status des Modells
+        """
+        if model_name in self.model_metadata:
+            return {
+                "name": model_name,
+                "status": "active" if model_name in self.models else "inactive",
+                "usage_count": self.model_metadata[model_name]["usage_count"],
+                "success_rate": self.model_metadata[model_name]["success_rate"],
+                "resource_usage": self.model_metadata[model_name]["resource_usage"],
+                "version": self.model_metadata[model_name]["version"],
+                "description": self.model_metadata[model_name]["description"]
+            }
+        else:
+            logger.warning(f"Metadaten für Modell '{model_name}' nicht gefunden.")
+            return {
+                "name": model_name,
+                "status": "unknown",
+                "usage_count": 0,
+                "success_rate": 0.0,
+                "resource_usage": {
+                    "cpu": 0.0,
+                    "memory": 0.0,
+                    "gpu": 0.0
+                },
+                "version": "unknown",
+                "description": f"Modell {model_name}"
+            }
     
-    def get_model_config(self, model_name: str) -> Dict:
-        """Gibt die Konfiguration eines Modells zurück"""
-        return self.model_configs.get(model_name, {})
+    def get_model_config(self, model_name: str) -> Dict[str, Any]:
+        """
+        Gibt die Konfiguration eines Modells zurück.
+        
+        Args:
+            model_name: Der Name des Modells
+            
+        Returns:
+            Dict[str, Any]: Die Konfiguration des Modells
+        """
+        if model_name in self.models:
+            try:
+                # Hole die Konfiguration aus dem Modell
+                config = self.models[model_name]["model"].config.to_dict()
+                return config
+            except Exception as e:
+                logger.error(f"Fehler beim Abrufen der Konfiguration für Modell '{model_name}': {str(e)}", exc_info=True)
+                return {}
+        else:
+            logger.warning(f"Modell '{model_name}' nicht gefunden.")
+            return {}
     
-    def get_model_metadata(self, model_name: str) -> Dict:
-        """Gibt die Metadaten eines Modells zurück"""
-        config = self.model_configs.get(model_name, {})
-        return config.get("metadata", {})
+    def get_model_metadata(self, model_name: str) -> Dict[str, Any]:
+        """
+        Gibt die Metadaten eines Modells zurück.
+        
+        Args:
+            model_name: Der Name des Modells
+            
+        Returns:
+            Dict[str, Any]: Die Metadaten des Modells
+        """
+        if model_name in self.model_metadata:
+            return self.model_metadata[model_name]
+        else:
+            logger.warning(f"Metadaten für Modell '{model_name}' nicht gefunden.")
+            return {}
     
-    def update_model_metadata(self, model_name: str, metadata: Dict) -> bool:
+    def update_model_metadata(self, model_name: str, updates: Dict[str, Any]):
         """
         Aktualisiert die Metadaten eines Modells.
         
         Args:
-            model_name: Name des Modells
-            metadata: Zu aktualisierende Metadaten
-            
-        Returns:
-            bool: True bei Erfolg
+            model_name: Der Name des Modells
+            updates: Die zu aktualisierenden Metadaten
         """
-        if model_name not in self.model_configs:
-            return False
-        
-        # Stelle sicher, dass der metadata-Schlüssel existiert
-        if "metadata" not in self.model_configs[model_name]:
-            self.model_configs[model_name]["metadata"] = {}
-        
-        # Aktualisiere die Metadaten
-        self.model_configs[model_name]["metadata"].update(metadata)
-        return True
-    
-    def get_best_model_for_category(self, category: str) -> Optional[str]:
-        """
-        Gibt das beste Modell für eine bestimmte Kategorie zurück.
-        
-        Args:
-            category: Die Kategorie, für die ein Modell benötigt wird
-            
-        Returns:
-            Der Name des besten Modells oder None, wenn keines passt
-        """
-        # Definiere, welche Modelle für welche Kategorien geeignet sind
-        for model_name, config in self.model_configs.items():
-            if "categories" in config and category in config["categories"]:
-                return model_name
-        
-        # Wenn keine passenden Modelle gefunden wurden, wähle einfach das erste verfügbare Modell
-        if self.models:
-            return next(iter(self.models))
-        
-        return None
-    
-    def update_model_config(self, model_name: str, new_config: Dict) -> bool:
-        """Aktualisiert die Konfiguration eines Modells"""
-        if model_name not in self.model_configs:
-            return False
-        
-        # Aktualisiere nur die angegebenen Felder
-        self.model_configs[model_name].update(new_config)
-        return True
-    
-    def query_model(self, model_name: str, prompt: str, **kwargs) -> str:
-        """
-        Fragt ein Modell mit einem Prompt ab.
-        
-        Args:
-            model_name: Name des Modells
-            prompt: Der zu verarbeitende Prompt
-            
-        Returns:
-            Die Antwort des Modells
-        """
-        model = self.get_model(model_name)
-        if not model:
-            logger.error(f"Modell nicht gefunden: {model_name}")
-            return "Fehler: Modell nicht gefunden"
-        
-        try:
-            # Hole die Konfiguration für das Modell
-            config = self.get_model_config(model_name)
-            # Aktualisiere mit benutzerspezifischen Parametern
-            config.update(kwargs)
-            
-            # Führe die Abfrage durch
-            response = model(prompt, **config)
-            logger.debug(f"Antwort von {model_name}: {response[:100]}...")
-            return response
-        except Exception as e:
-            logger.error(f"Fehler bei der Abfrage von {model_name}: {str(e)}", exc_info=True)
-            return f"Fehler bei der Abfrage: {str(e)}"
-    
-    def load_model(self, model_name: str, model_type: str, **kwargs) -> bool:
-        """
-        Lädt ein neues Modell.
-        
-        Args:
-            model_name: Name des Modells
-            model_type: Typ des Modells (local, api, etc.)
-            
-        Returns:
-            bool: True bei Erfolg
-        """
-        # In einer echten Implementierung würde hier das Modell geladen
-        logger.info(f"Lade Modell: {model_name} ({model_type})")
-        
-        # Erstelle Konfiguration
-        config = {
-            "type": model_type,
-            "status": "loaded",
-            "config": kwargs,
-            "categories": ["general"],
-            "metadata": {
-                "last_improved": None,
-                "performance_gain": 0.0
-            }
-        }
-        
-        # Speichere Konfiguration
-        self.model_configs[model_name] = config
-        
-        # Erstelle Stub
-        self.models[model_name] = self._create_model_stub(model_name, config)
-        
-        # Aktualisiere die Registry
-        self._update_registry()
-        
-        return True
-    
-    def _update_registry(self):
-        """Aktualisiert die model_registry.json mit aktuellen Modellkonfigurationen"""
-        registry_path = os.path.join(self.models_dir, "model_registry.json")
-        try:
-            # Erstelle ein Dictionary nur mit den relevanten Konfigurationsdaten
-            registry_data = {}
-            for model_name, config in self.model_configs.items():
-                # Entferne das Model-Objekt aus der Konfiguration
-                safe_config = config.copy()
-                if "model" in safe_config:
-                    del safe_config["model"]
-                registry_data[model_name] = safe_config
-            
-            with open(registry_path, 'w') as f:
-                json.dump(registry_data, f, indent=2)
-        except Exception as e:
-            logger.error(f"Fehler beim Aktualisieren der Registry: {str(e)}")
-    
-    def unload_model(self, model_name: str) -> bool:
-        """Entlädt ein Modell"""
-        if model_name in self.models:
-            del self.models[model_name]
-            del self.model_configs[model_name]
-            logger.info(f"Modell entladen: {model_name}")
+        if model_name in self.model_metadata:
+            # Aktualisiere die Metadaten
+            for key, value in updates.items():
+                self.model_metadata[model_name][key] = value
             
             # Aktualisiere die Registry
-            self._update_registry()
+            if model_name in self.model_registry:
+                for key, value in updates.items():
+                    if key in self.model_registry[model_name]:
+                        self.model_registry[model_name][key] = value
+                self.save_model_registry()
             
-            return True
-        return False
+            logger.info(f"Metadaten für Modell '{model_name}' aktualisiert.")
+        else:
+            logger.warning(f"Metadaten für Modell '{model_name}' nicht gefunden.")
     
-    def get_model_status(self, model_name: str) -> str:
-        """Gibt den Status eines Modells zurück"""
-        config = self.model_configs.get(model_name, {})
-        return config.get("status", "unknown")
+    def monitor_model_directory(self, interval: int = 60):
+        """
+        Überwacht das Modellverzeichnis auf Änderungen.
+        
+        Args:
+            interval: Überwachungsintervall in Sekunden
+        """
+        if self.monitoring:
+            logger.warning("Modellverzeichnis-Überwachung bereits aktiv.")
+            return
+        
+        self.monitoring = True
+        logger.info(f"Starte Modellverzeichnis-Überwachung (Intervall: {interval} Sekunden)...")
+        
+        def check_changes():
+            last_modified = {}
+            
+            while self.monitoring:
+                try:
+                    # Prüfe alle registrierten Modelle
+                    for model_name in list(self.models.keys()):
+                        model_path = os.path.join(self.models_dir, model_name)
+                        
+                        # Prüfe, ob das Modell-Verzeichnis existiert
+                        if not os.path.exists(model_path):
+                            logger.warning(f"Modell-Verzeichnis '{model_path}' nicht gefunden. Entferne Modell '{model_name}' aus der Registry.")
+                            self.unregister_model(model_name)
+                            continue
+                        
+                        # Prüfe, ob sich das Modell geändert hat
+                        current_mtime = os.path.getmtime(model_path)
+                        if model_name not in last_modified:
+                            last_modified[model_name] = current_mtime
+                        elif current_mtime != last_modified[model_name]:
+                            logger.info(f"Modell '{model_name}' wurde geändert. Lade neu...")
+                            try:
+                                # Entferne das alte Modell
+                                self.unregister_model(model_name)
+                                
+                                # Lade das neue Modell
+                                self.load_models()
+                                
+                                # Aktualisiere den letzten Änderungszeitpunkt
+                                last_modified[model_name] = os.path.getmtime(model_path)
+                                
+                                logger.info(f"Modell '{model_name}' erfolgreich neu geladen.")
+                            except Exception as e:
+                                logger.error(f"Fehler beim Neuladen von Modell '{model_name}': {str(e)}", exc_info=True)
+                
+                except Exception as e:
+                    logger.error(f"Fehler bei der Modellverzeichnis-Überwachung: {str(e)}", exc_info=True)
+                
+                # Warte vor der nächsten Überprüfung
+                time.sleep(interval)
+        
+        # Starte den Überwachungs-Thread
+        self.monitor_thread = threading.Thread(target=check_changes, daemon=True)
+        self.monitor_thread.start()
+    
+    def stop_model_monitoring(self):
+        """Stoppt die Modellverzeichnis-Überwachung."""
+        if self.monitoring:
+            self.monitoring = False
+            logger.info("Modellverzeichnis-Überwachung gestoppt.")
+        else:
+            logger.warning("Modellverzeichnis-Überwachung war nicht aktiv.")

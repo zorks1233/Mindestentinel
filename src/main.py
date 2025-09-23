@@ -63,13 +63,11 @@ _LOG = logging.getLogger("mindestentinel.main")
 
 def handle_admin_commands():
     """Verarbeitet Admin-Befehle direkt."""
-    # Entferne das erste Argument (main.py)
-    args = sys.argv[1:]
-    
     # Prüfe, ob es ein Admin-Befehl ist
-    if len(args) > 0 and args[0] == "admin":
-        # Entferne "admin"
-        args = args[1:]
+    if len(sys.argv) > 1 and sys.argv[1] == "admin":
+        # Entferne das erste Argument (main.py)
+        script_name = sys.argv[0]
+        args = sys.argv[2:]  # Überspringe "admin"
         
         # Prüfe, ob es ein Benutzer-Befehl ist
         if len(args) > 0 and args[0] == "users":
@@ -94,8 +92,7 @@ def handle_admin_commands():
                 
                 try:
                     # Setze sys.argv auf das Skript-Name + args
-                    # Der erste Wert ist der Skriptname (wird von argparse benötigt)
-                    sys.argv = [sys.argv[0]] + args
+                    sys.argv = [script_name] + args
                     
                     # Rufe main ohne Argumente auf (da sie keine Argumente erwartet)
                     users_main()
@@ -122,13 +119,18 @@ def build_components(rules_path: Optional[str] = None, enable_autonomy: bool = F
         Tupel mit (brain, model_manager, plugin_manager, autonomous_loop, user_manager)
         Der letzte Wert ist None, wenn enable_autonomy=False oder nicht verfügbar
     """
+    _LOG.info("Initialisiere ModelManager...")
     mm = ModelManager()
+    
+    _LOG.info("Initialisiere PluginManager...")
     pm = PluginManager()
     
     # Initialisiere die RuleEngine ZUERST, da sie von mehreren Komponenten benötigt wird
+    _LOG.info("Initialisiere RuleEngine...")
     rule_engine = RuleEngine(rules_path or os.path.join("config", "rules.yaml"))
     
     # Initialisiere das AIBrain mit der Regelkonfiguration
+    _LOG.info("Initialisiere AIBrain...")
     brain = AIBrain(rules_path or os.path.join("config", "rules.yaml"))
     
     # inject model manager
@@ -141,6 +143,7 @@ def build_components(rules_path: Optional[str] = None, enable_autonomy: bool = F
         brain.knowledge_base = KnowledgeBase()
     
     # Initialisiere den UserManager
+    _LOG.info("Initialisiere UserManager...")
     user_manager = UserManager(brain.knowledge_base)
     
     # Stelle sicher, dass mindestens ein Admin-Benutzer existiert

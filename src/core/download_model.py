@@ -1,0 +1,73 @@
+# src/tools/download_model.py
+"""
+download_model.py - Tool zum Herunterladen von KI-Modellen
+
+Dieses Skript lädt KI-Modelle von Hugging Face herunter und speichert sie im lokalen Format.
+"""
+
+import os
+import sys
+import logging
+import argparse
+from transformers import AutoModelForCausalLM, AutoTokenizer
+
+# Setze Logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+logger = logging.getLogger("mindestentinel.download_model")
+
+def download_model(model_name: str, output_dir: str):
+    """
+    Lädt ein Modell von Hugging Face herunter und speichert es lokal.
+    
+    Args:
+        model_name: Der Name des Modells (z.B. "mistral-7b")
+        output_dir: Das Ausgabeverzeichnis
+    """
+    try:
+        logger.info(f"Lade Modell '{model_name}' von Hugging Face herunter...")
+        
+        # Erstelle das Ausgabeverzeichnis, falls nicht vorhanden
+        os.makedirs(output_dir, exist_ok=True)
+        
+        # Lade das Modell und den Tokenizer
+        model = AutoModelForCausalLM.from_pretrained(model_name)
+        tokenizer = AutoTokenizer.from_pretrained(model_name)
+        
+        # Speichere das Modell lokal
+        logger.info(f"Speichere Modell in '{output_dir}'...")
+        model.save_pretrained(output_dir)
+        tokenizer.save_pretrained(output_dir)
+        
+        # Erstelle Metadaten
+        metadata = {
+            "name": model_name,
+            "created_at": str(os.path.getctime(output_dir)),
+            "model_type": "causal_lm",
+            "description": f"Modell {model_name} für Mindestentinel"
+        }
+        
+        # Speichere die Metadaten
+        with open(os.path.join(output_dir, "metadata.json"), "w") as f:
+            import json
+            json.dump(metadata, f, indent=2)
+        
+        logger.info(f"Modell '{model_name}' erfolgreich heruntergeladen und gespeichert in '{output_dir}'")
+        return True
+    except Exception as e:
+        logger.error(f"Fehler beim Herunterladen des Modells: {str(e)}", exc_info=True)
+        return False
+
+def main():
+    """Hauptfunktion des Skripts."""
+    parser = argparse.ArgumentParser(description="Lade KI-Modelle von Hugging Face herunter")
+    parser.add_argument("--model", required=True, help="Name des Modells (z.B. 'mistral-7b')")
+    parser.add_argument("--output", required=True, help="Ausgabeverzeichnis für das Modell")
+    
+    args = parser.parse_args()
+    
+    success = download_model(args.model, args.output)
+    if not success:
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()

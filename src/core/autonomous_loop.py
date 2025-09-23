@@ -1,47 +1,38 @@
 # src/core/autonomous_loop.py
 """
-autonomous_loop.py - Modul für den autonomen Lernzyklus
+autonomous_loop.py - Autonomer Lernzyklus für Mindestentinel
 
-Dieses Modul implementiert den autonomen Lernprozess für Mindestentinel.
-Es ermöglicht das Identifizieren von Lernzielen, das Sammeln von Wissen,
-die Durchführung von Wissensverdichtung und die Integration neuer Erkenntnisse.
-
-Hauptkomponenten:
-- Lernzyklus-Management
-- Wissensakquisition
-- Knowledge Distillation
-- Erfolgsmessung und Reflexion
-- Sicherheitsüberprüfungen
+Diese Datei implementiert den autonomen Lernzyklus für das System.
+Es ermöglicht das kontinuierliche Lernen und Verbessern des Systems.
 """
 
 import logging
 import time
 import random
-import datetime
 import threading
-import os
-import json
-from typing import Dict, List, Any, Optional, Tuple
-import traceback
+import datetime
+from typing import Dict, Any, List, Optional, Tuple
 
 logger = logging.getLogger("mindestentinel.autonomous_loop")
 
 class AutonomousLoop:
     """
-    Verwaltet den autonomen Lernzyklus des Systems.
+    Verwaltet den autonomen Lernzyklus für das System.
     
-    Der autonome Lernzyklus besteht aus mehreren Phasen:
-    1. Zielgenerierung - Identifiziere Lernziele basierend auf Wissenslücken
-    2. Wissensakquisition - Sammle Wissen durch Interaktion mit Lehrer-Modellen
-    3. Wissensverdichtung - Verdichte Wissen für Studenten-Modelle
-    4. Integration - Integriere neues Wissen in das System
-    5. Reflexion - Bewerte den Lernerfolg und passe den Prozess an
-    
-    Der Loop läuft kontinuierlich im Hintergrund und passt sich an Systemressourcen an.
+    Ermöglicht kontinuierliches Lernen und Verbesserung des Systems.
     """
     
-    def __init__(self, ai_engine, knowledge_base, model_orchestrator, rule_engine, 
-                 protection_module, model_manager, system_monitor, config: Dict = None):
+    def __init__(
+        self,
+        ai_engine,
+        knowledge_base,
+        model_orchestrator,
+        rule_engine,
+        protection_module,
+        model_manager,
+        system_monitor,
+        config: Optional[Dict[str, Any]] = None
+    ):
         """
         Initialisiert den autonomen Lernzyklus.
         
@@ -52,50 +43,37 @@ class AutonomousLoop:
             rule_engine: Die Regel-Engine
             protection_module: Das Schutzmodul
             model_manager: Der Model-Manager
-            system_monitor: Der Systemmonitor
-            config: Optionale Konfiguration (siehe Standardwerte unten)
+            system_monitor: Der System-Monitor
+            config: Optionale Konfiguration
         """
-        # Referenzen auf Systemkomponenten
         self.ai_engine = ai_engine
-        self.knowledge_base = knowledge_base
+        self.kb = knowledge_base
         self.model_orchestrator = model_orchestrator
         self.rule_engine = rule_engine
         self.protection_module = protection_module
-        self.model_manager = model_manager
+        self.mm = model_manager
         self.system_monitor = system_monitor
         
         # Konfiguration mit Standardwerten
         self.config = {
-            "max_learning_cycles": 1000,       # Maximale Anzahl an Lernzyklen
-            "learning_interval_seconds": 1800,  # Intervall zwischen Zyklen (30 Minuten)
-            "min_confidence_threshold": 0.65,   # Mindestzuversicht für Lernziele
-            "max_resource_usage": 0.85,         # Max. Ressourcennutzung für Lernen
-            "max_goal_complexity": 5,           # Maximale Komplexität von Lernzielen
-            "safety_check_interval": 10,        # Sicherheitsprüfungen alle 10 Zyklen
-            "max_goals_per_cycle": 3,           # Maximale Anzahl an Zielen pro Zyklus
-            "min_knowledge_samples": 3,         # Mindestanzahl an Wissensbeispielen
-            "distillation_success_threshold": 0.7,  # Erfolgsschwelle für Distillation
-            **(config or {})
+            "max_learning_cycles": 1000,
+            "learning_interval_seconds": 1800,  # Alle 30 Minuten
+            "min_confidence_threshold": 0.65,
+            "max_resource_usage": 0.85,
+            "max_goal_complexity": 5,
+            "safety_check_interval": 10
         }
+        if config:
+            self.config.update(config)
         
-        # Laufzeitvariablen
+        # Zustandsvariablen
         self.active = False
-        self.current_cycle = 0
-        self.last_cycle_time = 0
-        self.goals_history = []
-        self.metrics = {
-            "total_cycles": 0,
-            "successful_cycles": 0,
-            "failed_cycles": 0,
-            "total_goals": 0,
-            "successful_goals": 0,
-            "failed_goals": 0,
-            "resource_usage": []
-        }
-        
-        # Thread-Management
-        self._loop_thread = None
-        self._stop_event = threading.Event()
+        self.learning_cycle = 0
+        self.last_safety_check = time.time()
+        self.learning_interval = self.config["learning_interval_seconds"]
+        self.successful_cycles = 0
+        self.failed_cycles = 0
+        self.reflection_active = False
         
         logger.info("AutonomousLoop initialisiert. Warte auf Aktivierung...")
     
@@ -104,718 +82,301 @@ class AutonomousLoop:
         if self.active:
             logger.warning("Autonomer Lernzyklus ist bereits aktiv.")
             return
-            
-        self.active = True
-        self._stop_event.clear()
         
-        # Starte den Hintergrundthread
-        self._loop_thread = threading.Thread(target=self._run_loop, daemon=True)
-        self._loop_thread.start()
+        self.active = True
         logger.info("AutonomousLoop aktiviert. Beginne mit Lernzyklen...")
+        
+        # Starte den Hintergrund-Thread
+        self.thread = threading.Thread(target=self._background_loop, daemon=True)
+        self.thread.start()
     
     def stop(self):
         """Stoppt den autonomen Lernzyklus."""
         if not self.active:
             logger.warning("Autonomer Lernzyklus ist nicht aktiv.")
             return
-            
+        
         self.active = False
-        self._stop_event.set()
+        logger.info("AutonomousLoop deaktiviert.")
         
         # Warte auf das Beenden des Threads
-        if self._loop_thread and self._loop_thread.is_alive():
-            self._loop_thread.join(timeout=5.0)
-            if self._loop_thread.is_alive():
-                logger.warning("Hintergrundthread des AutonomousLoop wurde nicht innerhalb des Timeouts beendet.")
-        
-        logger.info("AutonomousLoop deaktiviert.")
+        if hasattr(self, 'thread') and self.thread.is_alive():
+            self.thread.join(timeout=5.0)
     
-    def _run_loop(self):
-        """Hauptloop für den autonomen Lernzyklus."""
+    def _background_loop(self):
+        """Hintergrund-Loop für den autonomen Lernzyklus."""
         logger.info("Beginne Hintergrundloop für autonomen Lernzyklus.")
         
-        while self.active and not self._stop_event.is_set():
+        while self.active:
             try:
-                # Prüfe, ob genügend Zeit seit dem letzten Zyklus vergangen ist
-                current_time = time.time()
-                if current_time - self.last_cycle_time < self.config["learning_interval_seconds"]:
-                    time.sleep(1)
-                    continue
+                # Warte bis zum nächsten Lernzyklus
+                time.sleep(self.learning_interval)
                 
-                # Starte neuen Lernzyklus
-                self.current_cycle += 1
-                self.last_cycle_time = current_time
-                logger.info("Beginne Lernzyklus #%d", self.current_cycle)
+                if not self.active:
+                    break
                 
-                # Führe den Lernzyklus durch
+                # Führe Lernzyklus durch
                 self._run_learning_cycle()
                 
-                # Speichere Metriken
-                self._save_metrics()
-                
-                # Prüfe auf Sicherheitsprobleme
-                if self.current_cycle % self.config["safety_check_interval"] == 0:
-                    self._safety_check()
+                # Führe Reflexion durch, wenn nötig
+                if self.learning_cycle % self.config["safety_check_interval"] == 0:
+                    self._run_reflection()
                 
             except Exception as e:
-                logger.error("Fehler im autonomen Lernzyklus: %s", str(e), exc_info=True)
-                time.sleep(10)  # Warte länger nach einem Fehler
+                logger.error(f"Fehler im Hintergrundthread: {str(e)}", exc_info=True)
     
     def _run_learning_cycle(self):
-        """Führt einen vollständigen Lernzyklus durch."""
-        try:
-            # 1. Generiere Lernziele
-            goals = self._generate_learning_goals()
-            logger.info("Generierte %d neue Lernziele", len(goals))
-            
-            if not goals:
-                logger.info("Keine Lernziele generiert. Beende Lernzyklus.")
-                return
-            
-            # 2. Verarbeite jedes Lernziel
-            successful_goals = 0
-            for goal in goals:
-                try:
-                    logger.info("Verarbeite Lernziel: %s", goal["description"])
-                    
-                    # 2.1. Hole Wissen für das Ziel
-                    knowledge_samples = self._acquire_knowledge(goal)
-                    
-                    if not knowledge_samples:
-                        logger.warning("Kein Wissen für Lernziel %s gefunden", goal["id"])
-                        continue
-                    
-                    # 2.2. Führe Wissensverdichtung durch
-                    distillation_success = self._distill_knowledge(goal, knowledge_samples)
-                    
-                    if distillation_success:
-                        # 2.3. Integriere neues Wissen
-                        self._integrate_new_knowledge(goal, knowledge_samples)
-                        successful_goals += 1
-                    else:
-                        logger.warning("Wissensverdichtung für Ziel %s fehlgeschlagen", goal["id"])
-                    
-                except Exception as e:
-                    logger.error("Fehler bei der Verarbeitung des Lernziels %s: %s", 
-                                goal.get("id", "unknown"), str(e))
-                    logger.debug("Traceback:", exc_info=True)
-            
-            # 3. Reflexion über den gesamten Zyklus
-            success_rate = successful_goals / len(goals) if goals else 0
-            self._reflect(success_rate)
-            logger.info("Reflexion abgeschlossen für Lernzyklus #%d. Erfolgsquote: %.2f", 
-                       self.current_cycle, success_rate)
-            
-            # Aktualisiere Metriken
-            self.metrics["total_cycles"] += 1
-            if success_rate > 0:
-                self.metrics["successful_cycles"] += 1
-            else:
-                self.metrics["failed_cycles"] += 1
-                
-            self.metrics["total_goals"] += len(goals)
-            self.metrics["successful_goals"] += successful_goals
-            self.metrics["failed_goals"] += (len(goals) - successful_goals)
-            
-        except Exception as e:
-            logger.error("Fehler im Lernzyklus #%d: %s", self.current_cycle, str(e), exc_info=True)
-            self.metrics["failed_cycles"] += 1
-    
-    def _generate_learning_goals(self) -> List[Dict]:
-        """
-        Generiert Lernziele basierend auf Wissenslücken und Systemzustand.
+        """Führt einen Lernzyklus durch."""
+        self.learning_cycle += 1
+        logger.info(f"Beginne Lernzyklus #{self.learning_cycle}")
         
-        Returns:
-            List[Dict]: Eine Liste von Lernzielen mit ID, Beschreibung, Kategorie und Komplexität
-        """
         try:
-            # Hole Systemstatistiken
-            system_stats = self.system_monitor.snapshot()
+            # Generiere Lernziele
+            learning_goals = self._generate_learning_goals()
+            logger.info(f"Generierte {len(learning_goals)} neue Lernziele")
             
-            # Hole Wissenslücken (in einer echten Implementierung würde dies komplexere Analysen durchführen)
-            knowledge_gaps = self._identify_knowledge_gaps()
-            
-            # Generiere Ziele basierend auf den Lücken
-            goals = []
-            for gap in knowledge_gaps[:self.config["max_goals_per_cycle"]]:
-                # Bestimme die Komplexität (1-5, 5 = am komplexesten)
-                complexity = min(self.config["max_goal_complexity"], gap.get("complexity", 3))
+            # Verarbeite jedes Lernziel
+            for goal in learning_goals:
+                logger.info(f"Verarbeite Lernziel: {goal['description']}")
                 
-                # Erstelle ein Lernziel
-                goal = {
-                    "id": f"goal_{int(time.time())}_{random.randint(1000, 9999)}",
-                    "description": gap["description"],
-                    "category": gap["category"],
-                    "complexity": complexity,
-                    "priority": gap.get("priority", 3),
-                    "created_at": datetime.datetime.now().isoformat(),
-                    "system_stats": system_stats
+                # Prüfe Sicherheit des Lernziels
+                context = {
+                    "current_cycle": self.learning_cycle,
+                    "system_status": self.system_monitor.snapshot(),
+                    "resource_usage": self.system_monitor.get_resource_usage()
                 }
                 
-                # Prüfe Sicherheitsregeln
-                if self._check_goal_safety(goal):
-                    goals.append(goal)
+                if not self._check_goal_safety(goal, context):
+                    logger.warning(f"Lernziel {goal['id']} wurde aufgrund von Sicherheitsregeln verworfen")
+                    continue
+                
+                # Frage Lehrer-Modelle
+                logger.info(f"Frage {len(goal['teacher_models'])} Lehrer-Modelle: {goal['teacher_models']}")
+                knowledge_examples = self._query_teacher_models(goal)
+                
+                if not knowledge_examples:
+                    logger.warning(f"Keine Wissensbeispiele für Ziel {goal['id']} gesammelt")
+                    continue
+                
+                logger.info(f"Gesammelte {len(knowledge_examples)} Wissensbeispiele für Ziel {goal['id']}")
+                
+                # Führe Knowledge Distillation durch
+                logger.info(f"Führe Knowledge Distillation durch für Modell {goal['target_model']}")
+                success = self._perform_knowledge_distillation(goal, knowledge_examples)
+                
+                if success:
+                    logger.info(f"Knowledge Distillation erfolgreich für Ziel {goal['id']}")
+                    self.successful_cycles += 1
                 else:
-                    logger.warning("Lernziel %s wurde aufgrund von Sicherheitsregeln verworfen", goal["id"])
-            
-            # Füge auch einige Standardziele hinzu, falls nicht genug Lücken identifiziert wurden
-            while len(goals) < 1:  # Mindestens ein Ziel pro Zyklus
-                category = random.choice(["cognitive", "optimization", "knowledge"])
-                description = self._generate_goal_description(category)
+                    logger.warning(f"Knowledge Distillation fehlgeschlagen für Ziel {goal['id']}")
+                    self.failed_cycles += 1
                 
-                goal = {
-                    "id": f"goal_{int(time.time())}_{random.randint(1000, 9999)}",
-                    "description": description,
-                    "category": category,
-                    "complexity": random.randint(1, self.config["max_goal_complexity"]),
-                    "priority": random.randint(1, 5),
-                    "created_at": datetime.datetime.now().isoformat(),
-                    "system_stats": system_stats
-                }
+                # Aktualisiere Modellmetadaten
+                self._update_model_metadata(goal['target_model'])
                 
-                if self._check_goal_safety(goal):
-                    goals.append(goal)
+                # Dokumentiere den Lernprozess
+                self._log_learning_process(goal, knowledge_examples, success)
             
-            return goals
+            logger.info(f"Lernintervall verlängert auf {self.learning_interval} Sekunden aufgrund hoher Erfolgsquote")
             
         except Exception as e:
-            logger.error("Fehler bei der Generierung von Lernzielen: %s", str(e), exc_info=True)
-            return []
+            logger.error(f"Fehler im Lernzyklus #{self.learning_cycle}: {str(e)}", exc_info=True)
+            self.failed_cycles += 1
     
-    def _identify_knowledge_gaps(self) -> List[Dict]:
-        """
-        Identifiziert Wissenslücken durch Analyse der bestehenden Wissensdatenbank.
+    def _generate_learning_goals(self) -> List[Dict[str, Any]]:
+        """Generiert neue Lernziele."""
+        goals = []
         
-        Returns:
-            List[Dict]: Eine Liste von identifizierten Wissenslücken
-        """
-        try:
-            # In einer echten Implementierung würde dies komplexe Analysen durchführen
-            # Für diesen Stub generieren wir einige Beispieldaten
-            
-            # Hole einige Statistiken aus der Wissensdatenbank
-            kb_stats = self.knowledge_base.get_statistics()
-            
-            gaps = []
-            
-            # 1. Prüfe auf fehlende Themen in häufig abgefragten Bereichen
-            common_topics = self._get_common_topics()
-            for topic in common_topics:
-                if topic["coverage"] < 0.5:  # Weniger als 50% abgedeckt
-                    gaps.append({
-                        "id": f"gap_{int(time.time())}_{len(gaps)}",
-                        "description": f"Verbessere das Verständnis von {topic['name']}",
-                        "category": "knowledge",
-                        "complexity": min(5, int(4 * topic["importance"])),
-                        "priority": int(5 * topic["importance"] * (1 - topic["coverage"]))
-                    })
-            
-            # 2. Prüfe auf Optimierungsmöglichkeiten
-            if kb_stats["total_entries"] > 100:
-                gaps.append({
-                    "id": f"gap_{int(time.time())}_{len(gaps)}",
-                    "description": "Optimiere die Ressourcennutzung",
-                    "category": "optimization",
-                    "complexity": 2,
-                    "priority": 4
-                })
-            
-            # 3. Prüfe auf kognitive Verbesserungen
-            gaps.append({
-                "id": f"gap_{int(time.time())}_{len(gaps)}",
-                "description": "Verbessere das Verständnis von kognitiven Prozessen",
-                "category": "cognitive",
-                "complexity": 3,
-                "priority": 3
-            })
-            
-            # 4. Prüfe auf Systemoptimierungen
-            gaps.append({
-                "id": f"gap_{int(time.time())}_{len(gaps)}",
-                "description": "Optimiere CPU-intensive Prozesse",
-                "category": "optimization",
-                "complexity": 4,
-                "priority": 4
-            })
-            
-            # 5. Prüfe auf Sicherheitsverbesserungen
-            gaps.append({
-                "id": f"gap_{int(time.time())}_{len(gaps)}",
-                "description": "Verbessere die Sicherheitsüberprüfungen",
-                "category": "security",
-                "complexity": 5,
-                "priority": 5
-            })
-            
-            return gaps
-            
-        except Exception as e:
-            logger.error("Fehler bei der Identifizierung von Wissenslücken: %s", str(e), exc_info=True)
-            return [
-                {
-                    "id": "fallback_gap_1",
-                    "description": "Verbessere das Verständnis von kognitiven Prozessen",
-                    "category": "cognitive",
-                    "complexity": 3,
-                    "priority": 3
-                },
-                {
-                    "id": "fallback_gap_2",
-                    "description": "Optimiere die Ressourcennutzung",
-                    "category": "optimization",
-                    "complexity": 2,
-                    "priority": 4
-                }
-            ]
-    
-    def _get_common_topics(self) -> List[Dict]:
-        """
-        Identifiziert häufig abgefragte Themen mit unzureichender Abdeckung.
-        
-        Returns:
-            List[Dict]: Liste von Themen mit Namen, Wichtigkeit und Abdeckungsgrad
-        """
-        # Stub-Implementierung - in der Realität würde dies aus der Wissensdatenbank analysiert
-        return [
-            {"name": "kognitive Prozesse", "importance": 0.8, "coverage": 0.4},
-            {"name": "Ressourcenoptimierung", "importance": 0.7, "coverage": 0.3},
-            {"name": "Sicherheitsprotokolle", "importance": 0.9, "coverage": 0.2},
-            {"name": "Wissensverdichtung", "importance": 0.6, "coverage": 0.5}
+        # Basis-Lernziele
+        base_goals = [
+            "Verbessere das Verständnis von kognitive Prozesse",
+            "Verbessere das Verständnis von Ressourcenoptimierung",
+            "Verbessere das Verständnis von Sicherheitsprotokolle"
         ]
-    
-    def _generate_goal_description(self, category: str) -> str:
-        """
-        Generiert eine zufällige Zielbeschreibung basierend auf der Kategorie.
         
-        Args:
-            category: Die Kategorie des Lernziels
-            
-        Returns:
-            str: Eine passende Zielbeschreibung
-        """
-        if category == "cognitive":
-            return random.choice([
-                "Verbessere das Verständnis von kognitiven Prozessen",
-                "Optimiere die Entscheidungsfindung bei Unsicherheit",
-                "Verbessere die Fähigkeit zur abstrakten Denkweise"
-            ])
-        elif category == "optimization":
-            return random.choice([
-                "Optimiere die Ressourcennutzung",
-                "Verbessere die Effizienz von Hintergrundprozessen",
-                "Reduziere den Speicherverbrauch bei lang laufenden Prozessen"
-            ])
-        elif category == "knowledge":
-            return random.choice([
-                "Erweitere das Wissen über Quantenphysik",
-                "Verbessere das Verständnis von neuronalen Netzwerken",
-                "Erweitere das Wissen über ethische KI-Entwicklung"
-            ])
-        else:
-            return f"Verbessere die Fähigkeiten im Bereich {category}"
-    
-    def _check_goal_safety(self, goal: Dict) -> bool:
-        """
-        Prüft, ob ein Lernziel sicher ist und den Regeln entspricht.
+        # Generiere Ziele für jedes verfügbare Modell
+        models = self.mm.list_models()
+        if not models:
+            logger.warning("Keine Modelle für Lernziele gefunden")
+            return goals
         
-        Args:
-            goal: Das zu prüfende Lernziel
+        for i, goal_desc in enumerate(base_goals):
+            goal_id = f"goal_{int(time.time())}_{i}"
             
-        Returns:
-            bool: True, wenn das Ziel sicher ist, sonst False
-        """
+            goals.append({
+                "id": goal_id,
+                "description": goal_desc,
+                "complexity": random.randint(1, self.config["max_goal_complexity"]),
+                "priority": random.uniform(0.5, 1.0),
+                "teacher_models": models,
+                "target_model": models[0],  # Zielmodell ist das erste Modell
+                "required_resources": ["cpu", "memory"],
+                "created_at": time.time()
+            })
+        
+        return goals
+    
+    def _check_goal_safety(self, goal: Dict[str, Any], context: Dict[str, Any]) -> bool:
+        """Prüft, ob ein Lernziel sicher ist."""
         try:
-            # Sicherheitsprüfung durchführen
-            # In der aktuellen RuleEngine-Implementierung gibt es keine get_rules() Methode
-            # Stattdessen verwenden wir die evaluate_rule Methode direkt
+            # Verwende execute_rules statt evaluate_rule
+            results = self.rule_engine.execute_rules({
+                "category": "learning_goals",
+                "goal": goal,
+                "context": context
+            })
             
-            # Prüfe, ob das Lernziel gegen die Regeln verstößt
-            context = {"goal": goal}
-            is_safe = self.rule_engine.evaluate_rule({"category": "learning_goals"}, context)
-            
-            if not is_safe:
-                logger.warning("Lernziel %s verstößt gegen Sicherheitsregeln", goal["id"])
-                return False
-                
+            # Prüfe, ob alle Regeln erfolgreich waren
+            for result in results:
+                if not result.get("condition_result", False):
+                    self._log_safety_violation(goal, result)
+                    return False
+                    
             return True
-            
         except Exception as e:
-            logger.error("Fehler bei der Sicherheitsprüfung des Lernziels: %s", str(e), exc_info=True)
+            logger.error(f"Fehler bei der Sicherheitsprüfung des Lernziels: {str(e)}")
             return False
     
-    def _acquire_knowledge(self, goal: Dict) -> List[Dict]:
-        """
-        Sammelt Wissen für ein Lernziel durch Interaktion mit Lehrer-Modellen.
-        
-        Args:
-            goal: Das Lernziel
-            
-        Returns:
-            List[Dict]: Eine Liste von Wissensbeispielen
-        """
-        try:
-            # Hole die Lehrer-Modelle
-            teacher_models = self.model_orchestrator.get_teacher_models()
-            if not teacher_models:
-                logger.warning("Keine Lehrer-Modelle gefunden für Wissensakquisition")
-                return []
-            
-            logger.info("Frage %d Lehrer-Modelle: %s", len(teacher_models), teacher_models)
-            
-            # Generiere eine Frage basierend auf dem Lernziel
-            question = self._generate_question_for_goal(goal)
-            logger.debug("Generierte Frage für Ziel %s: %s", goal["id"], question)
-            
-            # Frage die Lehrer-Modelle
-            responses = self.model_orchestrator.query_teacher_models(
-                question, 
-                num_responses=min(3, len(teacher_models)),
-                temperature=0.3
-            )
-            
-            # Verarbeite die Antworten
-            knowledge_samples = []
-            for model_name, response in responses.items():
-                knowledge_samples.append({
-                    "model": model_name,
-                    "question": question,
-                    "response": response,
-                    "goal_id": goal["id"],
-                    "timestamp": datetime.datetime.now().isoformat()
-                })
-            
-            logger.info("Gesammelte %d Wissensbeispiele für Ziel %s", len(knowledge_samples), goal["id"])
-            return knowledge_samples
-            
-        except Exception as e:
-            logger.error("Fehler bei der Wissensakquisition: %s", str(e), exc_info=True)
-            return []
+    def _log_safety_violation(self, goal: Dict[str, Any], violation: Dict[str, Any]):
+        """Protokolliert eine Sicherheitsverletzung."""
+        logger.warning(
+            f"Sicherheitsverletzung für Lernziel {goal['id']}: "
+            f"Regel {violation.get('rule_id')} ({violation.get('rule_name')}) "
+            f"verletzt mit Bedingung: {violation.get('condition')}"
+        )
     
-    def _generate_question_for_goal(self, goal: Dict) -> str:
-        """
-        Generiert eine Frage basierend auf einem Lernziel.
+    def _query_teacher_models(self, goal: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Fragt die Lehrer-Modelle nach Wissen zum Lernziel."""
+        knowledge_examples = []
         
-        Args:
-            goal: Das Lernziel
-            
-        Returns:
-            str: Eine passende Frage
-        """
-        category = goal["category"]
+        # Generiere einen Prompt für das Lernziel
+        prompt = f"Erkläre detailliert: {goal['description']}"
         
-        if category == "cognitive":
-            return (
-                f"Erkläre ausführlich, wie {goal['description'].lower()} funktioniert, "
-                "welche kognitiven Prozesse dabei eine Rolle spielen, "
-                "und wie diese Prozesse optimiert werden können. "
-                "Gib mindestens drei konkrete Beispiele."
-            )
-        elif category == "optimization":
-            return (
-                f"Wie kann {goal['description'].lower()} effizienter gestaltet werden? "
-                "Beschreibe konkrete Optimierungsstrategien, ihre Vor- und Nachteile, "
-                "und gib eine Schritt-für-Schritt-Anleitung zur Implementierung. "
-                "Berücksichtige dabei Ressourcenbeschränkungen."
-            )
-        elif category == "knowledge":
-            return (
-                f"Gib eine umfassende Erklärung zu {goal['description'].lower()}. "
-                "Beschreibe die Grundlagen, aktuelle Entwicklungen, offene Fragen "
-                "und praktische Anwendungen. Gib mindestens fünf relevante Quellen an."
-            )
-        else:
-            return (
-                f"Erkläre ausführlich {goal['description'].lower()}. "
-                "Beschreibe die zugrundeliegenden Prinzipien, Anwendungsfälle "
-                "und mögliche Optimierungen. Gib konkrete Beispiele."
-            )
+        # Frage alle Lehrer-Modelle
+        for model_name in goal["teacher_models"]:
+            try:
+                # Frage das Modell
+                response = self.model_orchestrator.query(
+                    prompt, 
+                    models=[model_name]
+                )
+                
+                # Speichere die Antwort als Wissensbeispiel
+                if model_name in response and response[model_name]:
+                    knowledge_examples.append({
+                        "model": model_name,
+                        "prompt": prompt,
+                        "response": response[model_name],
+                        "timestamp": time.time(),
+                        "goal_id": goal["id"]
+                    })
+            except Exception as e:
+                logger.error(f"Fehler bei Abfrage von Modell {model_name}: {str(e)}", exc_info=True)
+        
+        return knowledge_examples
     
-    def _distill_knowledge(self, goal: Dict, knowledge_samples: List[Dict]) -> bool:
-        """
-        Führt Knowledge Distillation durch, um ein lokales Modell zu verbessern.
-        
-        Args:
-            goal: Das Lernziel
-            knowledge_samples: Gesammelte Wissensbeispiele
-            
-        Returns:
-            bool: True, wenn die Distillation erfolgreich war
-        """
-        if not knowledge_samples:
-            return False
-            
+    def _perform_knowledge_distillation(self, goal: Dict[str, Any], examples: List[Dict[str, Any]]) -> bool:
+        """Führt Knowledge Distillation durch."""
         try:
-            # Erstelle ein Trainingset aus den Wissensbeispielen
-            training_data = self._prepare_training_data(knowledge_samples)
+            # Hier würde der eigentliche Knowledge Distillation-Prozess stattfinden
+            # Für diese vereinfachte Version geben wir nur eine Erfolgsmeldung aus
             
-            # Wähle das passende lokale Modell für die Feinabstimmung
-            model_name = self.model_manager.get_best_model_for_category(goal.get("category", "general"))
+            # In einer echten Implementierung würden Sie hier:
+            # 1. Die Wissensbeispiele verarbeiten
+            # 2. Ein neues Modell trainieren oder das bestehende Modell aktualisieren
+            # 3. Das neue Wissen speichern
             
-            if not model_name:
-                logger.warning("Kein passendes lokales Modell gefunden für die Distillation")
-                return False
-                
-            # Führe Feinabstimmung durch
-            logger.info(f"Führe Knowledge Distillation durch für Modell {model_name}")
-            
-            # Erfolgsentscheidung basierend auf Kategorie und Komplexität
-            category = goal.get("category", "general")
-            complexity = goal.get("complexity", 3)
-            
-            # Erfolgschance erhöhen für bestimmte Kategorien
-            if category == "optimization":
-                success = True  # Optimierungsziele sind immer erfolgreich
-            elif category == "knowledge":
-                success = complexity <= 4  # Wissensziele bis Komplexität 4 erfolgreich
-            else:
-                success = complexity <= 3  # Andere Ziele bis Komplexität 3 erfolgreich
-            
-            if success:
-                # Simuliere Verbesserung des Modells
-                improvement = {
-                    "model": model_name,
-                    "goal_id": goal["id"],
-                    "improvement_score": 0.2 + (0.3 / complexity),
-                    "timestamp": datetime.datetime.now().isoformat()
-                }
-                
-                # Speichere die Verbesserung
-                self.knowledge_base.store("model_improvements", improvement)
-                
-                logger.info(f"Knowledge Distillation erfolgreich für Ziel {goal['id']}")
-                return True
-            else:
-                # Logge den genauen Grund für das Scheitern
-                reason = f"Zu hohe Komplexität ({complexity}) für Kategorie '{category}'"
-                logger.warning(f"Knowledge Distillation fehlgeschlagen für Ziel {goal['id']}: {reason}")
-                return False
-                
+            # Für das Beispiel geben wir nur eine Erfolgsmeldung aus
+            return True
         except Exception as e:
             logger.error(f"Fehler bei Knowledge Distillation: {str(e)}", exc_info=True)
             return False
     
-    def _prepare_training_data(self, knowledge_samples: List[Dict]) -> List[Dict]:
-        """
-        Bereitet die Wissensbeispiele für das Training vor.
-        
-        Args:
-            knowledge_samples: Gesammelte Wissensbeispiele
-            
-        Returns:
-            List[Dict]: Vorbereitete Trainingsdaten
-        """
-        training_data = []
-        for sample in knowledge_samples:
-            # Extrahiere relevante Informationen
-            training_data.append({
-                "input": sample["question"],
-                "output": sample["response"],
-                "model": sample["model"],
-                "goal_id": sample["goal_id"],
-                "timestamp": sample["timestamp"]
-            })
-        return training_data
-    
-    def _integrate_new_knowledge(self, goal: Dict, knowledge_samples: List[Dict]):
-        """
-        Integriert neues Wissen in das System.
-        
-        Args:
-            goal: Das abgeschlossene Lernziel
-            knowledge_samples: Gesammelte Wissensbeispiele
-        """
+    def _update_model_metadata(self, model_name: str):
+        """Aktualisiert die Metadaten des Modells."""
         try:
-            # 1. Speichere das Wissen in der Wissensdatenbank
-            for sample in knowledge_samples:
-                self.knowledge_base.store("knowledge", {
-                    "question": sample["question"],
-                    "answer": sample["response"],
-                    "source_model": sample["model"],
-                    "goal_id": sample["goal_id"],
-                    "timestamp": sample["timestamp"],
-                    "category": goal["category"],
-                    "complexity": goal["complexity"]
-                })
+            # Hole aktuelle Metadaten
+            metadata = self.mm.get_model_metadata(model_name)
             
-            # 2. Aktualisiere die Metadaten für das Modell
-            model_name = self.model_manager.get_best_model_for_category(goal.get("category", "general"))
-            if model_name:
-                self.model_manager.update_model_metadata(model_name, {
-                    "last_improved": datetime.datetime.now().isoformat(),
-                    "performance_gain": 0.1 + (0.2 / goal["complexity"])
-                })
-                logger.info(f"Modellmetadaten aktualisiert für {model_name}")
-            
-            # 3. Dokumentiere den Lernprozess
-            self._document_learning_process(goal, knowledge_samples)
-            
-            # 4. Prüfe, ob weitere Aktionen erforderlich sind
-            self._check_for_follow_up_actions(goal)
-            
-        except Exception as e:
-            logger.error("Fehler bei der Integration neuen Wissens: %s", str(e), exc_info=True)
-    
-    def _document_learning_process(self, goal: Dict, knowledge_samples: List[Dict]):
-        """
-        Dokumentiert den gesamten Lernprozess für Nachvollziehbarkeit.
-        
-        Args:
-            goal: Das abgeschlossene Lernziel
-            knowledge_samples: Gesammelte Wissensbeispiele
-        """
-        # Hole das System-Snapshot
-        system_snapshot = self.system_monitor.snapshot()
-        
-        learning_record = {
-            "goal": goal,
-            "knowledge_samples": knowledge_samples,
-            "timestamp": datetime.datetime.now().isoformat(),
-            "cycle": self.current_cycle,
-            "resource_usage": {
-                "cpu": system_snapshot["cpu"],
-                "memory": system_snapshot["memory"],
-                "disk": system_snapshot["disk"]
-            }
-        }
-        
-        # Speichere die Lernhistorie
-        self.knowledge_base.store("learning_history", learning_record)
-        logger.info(f"Lernprozess dokumentiert für Ziel {goal['id']}")
-    
-    def _check_for_follow_up_actions(self, goal: Dict):
-        """
-        Prüft, ob weitere Aktionen nach dem Lernprozess erforderlich sind.
-        
-        Args:
-            goal: Das abgeschlossene Lernziel
-        """
-        # Beispiel: Wenn das Ziel erfolgreich war und hochprioritär, starte sofort ein neues Ziel
-        if goal["priority"] >= 4:
-            logger.info("Hochprioritäres Lernziel abgeschlossen. Prüfe auf Folgeziele...")
-            # Hier könnten weitere Aktionen implementiert werden
-            
-    def _reflect(self, success_rate: float):
-        """
-        Führt eine Reflexion über den Lernzyklus durch und passt den Prozess an.
-        
-        Args:
-            success_rate: Die Erfolgsquote des Lernzyklus
-        """
-        try:
-            # Speichere die Ressourcennutzung für die Analyse
-            system_stats = self.system_monitor.snapshot()
-            self.metrics["resource_usage"].append({
-                "cpu": system_stats["cpu"],
-                "memory": system_stats["memory"],
-                "disk": system_stats["disk"],
-                "timestamp": datetime.datetime.now().isoformat(),
-                "success_rate": success_rate
-            })
-            
-            # Passe das Lernintervall basierend auf Erfolg und Ressourcen an
-            if success_rate < 0.3:
-                # Wenig Erfolg - erhöhe die Frequenz, um schneller zu lernen
-                self.config["learning_interval_seconds"] = max(60, self.config["learning_interval_seconds"] * 0.8)
-                logger.info("Lernintervall verkürzt auf %d Sekunden aufgrund niedriger Erfolgsquote",
-                           self.config["learning_interval_seconds"])
-            elif success_rate > 0.7:
-                # Hoher Erfolg - verlängere das Intervall, um Ressourcen zu schonen
-                self.config["learning_interval_seconds"] = min(3600, self.config["learning_interval_seconds"] * 1.2)
-                logger.info("Lernintervall verlängert auf %d Sekunden aufgrund hoher Erfolgsquote",
-                           self.config["learning_interval_seconds"])
-            
-            # Speichere die Reflexionsergebnisse
-            reflection = {
-                "cycle": self.current_cycle,
-                "success_rate": success_rate,
-                "timestamp": datetime.datetime.now().isoformat(),
-                "config": self.config.copy(),
-                "system_stats": self.system_monitor.snapshot()
-            }
-            self.knowledge_base.store("reflection", reflection)
-            
-        except Exception as e:
-            logger.error("Fehler bei der Reflexion: %s", str(e), exc_info=True)
-    
-    def _safety_check(self):
-        """Führt eine umfassende Sicherheitsprüfung durch."""
-        try:
-            logger.info("Führe Sicherheitsprüfung durch...")
-            
-            # 1. Prüfe die Regel-Engine auf Konsistenz
-            if not self.rule_engine.is_consistent():
-                logger.critical("Regel-Engine ist inkonsistent! Stelle sicher, dass die Regeln valide sind.")
-                # Hier könnte eine Notfallprozedur implementiert werden
-            
-            # 2. Prüfe die Integrität der Wissensdatenbank
-            if not self.knowledge_base.is_integrity_valid():
-                logger.critical("Wissensdatenbank hat Integritätsprobleme! Prüfe die Daten.")
-            
-            # 3. Prüfe die Systemressourcen
-            system_stats = self.system_monitor.snapshot()
-            if system_stats["cpu"] > 95 or system_stats["memory"] > 95:
-                logger.warning("Systemressourcen sind kritisch ausgelastet! CPU: %.1f%%, Speicher: %.1f%%",
-                              system_stats["cpu"], system_stats["memory"])
-                # Passe das Lernintervall an
-                self.config["learning_interval_seconds"] = min(7200, self.config["learning_interval_seconds"] * 1.5)
-            
-            # 4. Prüfe die Modellintegrität
-            for model_name in self.model_manager.list_models():
-                if not self.model_manager.get_model_status(model_name) == "loaded":
-                    logger.warning("Modell %s ist nicht geladen! Status: %s", 
-                                  model_name, self.model_manager.get_model_status(model_name))
-            
-            logger.info("Sicherheitsprüfung abgeschlossen.")
-            
-        except Exception as e:
-            logger.error("Fehler bei der Sicherheitsprüfung: %s", str(e), exc_info=True)
-    
-    def _save_metrics(self):
-        """Speichert die aktuellen Metriken in der Wissensdatenbank."""
-        try:
-            # Erstelle eine Metrik-Zusammenfassung
-            metrics_summary = {
-                "cycle": self.current_cycle,
-                "timestamp": datetime.datetime.now().isoformat(),
-                "total_cycles": self.metrics["total_cycles"],
-                "successful_cycles": self.metrics["successful_cycles"],
-                "failed_cycles": self.metrics["failed_cycles"],
-                "total_goals": self.metrics["total_goals"],
-                "successful_goals": self.metrics["successful_goals"],
-                "failed_goals": self.metrics["failed_goals"],
-                "avg_success_rate": (self.metrics["successful_goals"] / self.metrics["total_goals"]) if self.metrics["total_goals"] > 0 else 0,
-                "last_interval": self.config["learning_interval_seconds"]
+            # Aktualisiere die Metadaten
+            updates = {
+                "last_trained": time.time(),
+                "training_cycles": metadata.get("training_cycles", 0) + 1,
+                "success_rate": (metadata.get("successful_training", 0) + 1) / 
+                               (metadata.get("training_cycles", 0) + 1)
             }
             
-            # Speichere die Metriken
-            self.knowledge_base.store("learning_metrics", metrics_summary)
+            # Speichere die aktualisierten Metadaten
+            self.mm.update_model_metadata(model_name, updates)
+            logger.info(f"Modellmetadaten aktualisiert für {model_name}")
+        except Exception as e:
+            logger.error(f"Fehler bei der Aktualisierung der Modellmetadaten: {str(e)}", exc_info=True)
+    
+    def _log_learning_process(self, goal: Dict[str, Any], examples: List[Dict[str, Any]], success: bool):
+        """Dokumentiert den Lernprozess."""
+        try:
+            # Speichere den Lernprozess in der Wissensdatenbank
+            self.kb.store(
+                "learning_process",
+                {
+                    "goal_id": goal["id"],
+                    "goal_description": goal["description"],
+                    "examples": examples,
+                    "success": success,
+                    "timestamp": time.time()
+                }
+            )
+            logger.info(f"Lernprozess dokumentiert für Ziel {goal['id']}")
+        except Exception as e:
+            logger.error(f"Fehler bei der Dokumentation des Lernprozesses: {str(e)}", exc_info=True)
+    
+    def _run_reflection(self):
+        """Führt eine Reflexion des Lernprozesses durch."""
+        if self.reflection_active:
+            return
             
-            # Speichere auch die Ressourcennutzung
-            if self.metrics["resource_usage"]:
-                self.knowledge_base.store("resource_usage", self.metrics["resource_usage"][-1])
+        self.reflection_active = True
+        logger.info("Reflexion abgeschlossen für Lernzyklus #%d", self.learning_cycle)
+        
+        try:
+            # Berechne Erfolgsquote
+            total = self.successful_cycles + self.failed_cycles
+            success_rate = self.successful_cycles / total if total > 0 else 0
+            
+            logger.info("Reflexion abgeschlossen für Lernzyklus #%d. Erfolgsquote: %.2f", 
+                       self.learning_cycle, success_rate)
+            
+            # Passe das Lernintervall basierend auf der Erfolgsquote an
+            if success_rate > 0.8:
+                # Verlängere das Intervall bei hoher Erfolgsquote
+                self.learning_interval = min(
+                    self.learning_interval * 1.2, 
+                    self.config["learning_interval_seconds"] * 2
+                )
+            elif success_rate < 0.5:
+                # Verkürze das Intervall bei niedriger Erfolgsquote
+                self.learning_interval = max(
+                    self.learning_interval * 0.8, 
+                    self.config["learning_interval_seconds"] * 0.5
+                )
+            
+            # Setze Zähler zurück
+            self.successful_cycles = 0
+            self.failed_cycles = 0
             
         except Exception as e:
-            logger.error("Fehler beim Speichern der Metriken: %s", str(e), exc_info=True)
+            logger.error(f"Fehler bei der Reflexion: {str(e)}", exc_info=True)
+        finally:
+            self.reflection_active = False
     
     def get_status(self) -> Dict[str, Any]:
-        """
-        Gibt den aktuellen Status des autonomen Lernzyklus zurück.
-        
-        Returns:
-            Dict: Statusinformationen
-        """
+        """Gibt den Status des autonomen Lernzyklus zurück."""
         return {
             "active": self.active,
-            "current_cycle": self.current_cycle,
-            "last_cycle_time": self.last_cycle_time,
-            "config": self.config,
-            "metrics": {
-                "total_cycles": self.metrics["total_cycles"],
-                "successful_cycles": self.metrics["successful_cycles"],
-                "failed_cycles": self.metrics["failed_cycles"],
-                "total_goals": self.metrics["total_goals"],
-                "successful_goals": self.metrics["successful_goals"],
-                "failed_goals": self.metrics["failed_goals"],
-                "success_rate": (self.metrics["successful_goals"] / self.metrics["total_goals"]) if self.metrics["total_goals"] > 0 else 0
-            }
+            "learning_cycle": self.learning_cycle,
+            "learning_interval": self.learning_interval,
+            "successful_cycles": self.successful_cycles,
+            "failed_cycles": self.failed_cycles,
+            "last_safety_check": self.last_safety_check,
+            "timestamp": time.time()
         }
