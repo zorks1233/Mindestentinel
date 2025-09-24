@@ -52,6 +52,9 @@ from src.core.multi_model_orchestrator import MultiModelOrchestrator
 from src.core.rule_engine import RuleEngine
 from src.core.protection_module import ProtectionModule
 from src.core.system_monitor import SystemMonitor
+from src.core.model_cloner import ModelCloner
+from src.core.knowledge_transfer import KnowledgeTransfer
+from src.core.model_trainer import ModelTrainer  # Importiere den ModelTrainer
 from src.api.rest_api import create_app
 from src.api.websocket_api import create_ws_app
 from src.core.logging_config import setup_logging
@@ -172,6 +175,30 @@ def build_components(rules_path: Optional[str] = None, enable_autonomy: bool = F
         _LOG.info("system_monitor nicht in AIBrain gefunden - initialisiere neu")
         brain.system_monitor = SystemMonitor()
     
+    # Initialisiere ModelCloner
+    _LOG.info("Initialisiere ModelCloner...")
+    model_cloner = ModelCloner(mm, brain.knowledge_base)
+    
+    # Initialisiere KnowledgeTransfer
+    _LOG.info("Initialisiere KnowledgeTransfer...")
+    knowledge_transfer = KnowledgeTransfer(
+        brain.knowledge_base,
+        brain.rule_engine,
+        brain.protection_module
+    )
+    
+    # Initialisiere ModelTrainer
+    _LOG.info("Initialisiere ModelTrainer...")
+    model_trainer = ModelTrainer(
+        brain.knowledge_base,
+        mm,
+        {
+            "epochs": 3,
+            "batch_size": 8,
+            "learning_rate": 5e-5
+        }
+    )
+    
     # Registriere Lehrer-Modelle, falls vorhanden
     if hasattr(brain, 'model_orchestrator') and brain.model_orchestrator is not None:
         model_names = mm.list_models()
@@ -196,13 +223,18 @@ def build_components(rules_path: Optional[str] = None, enable_autonomy: bool = F
                 protection_module=brain.protection_module,
                 model_manager=mm,
                 system_monitor=brain.system_monitor,
+                model_cloner=model_cloner,
+                knowledge_transfer=knowledge_transfer,
                 config={
                     "max_learning_cycles": 1000,
                     "learning_interval_seconds": 1800,  # Alle 30 Minuten
                     "min_confidence_threshold": 0.65,
                     "max_resource_usage": 0.85,
                     "max_goal_complexity": 5,
-                    "safety_check_interval": 10
+                    "safety_check_interval": 10,
+                    "max_concurrent_learning_sessions": 1,
+                    "min_knowledge_examples": 3,
+                    "max_knowledge_examples": 10
                 }
             )
             _LOG.info("Autonomer Lernzyklus erfolgreich initialisiert")

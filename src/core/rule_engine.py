@@ -87,6 +87,21 @@ class RuleEngine:
             logger.error(f"Fehler beim Laden der Regeln: {str(e)}", exc_info=True)
             return []
     
+    def generate_real_signature(self) -> str:
+        """
+        Generiert eine echte Signatur für die Regeln.
+        
+        Returns:
+            str: Die generierte Signatur
+        """
+        # Konvertiere die Regeln in einen JSON-String
+        rules_json = json.dumps(self.rules, sort_keys=True)
+        
+        # Erstelle einen Hash
+        digest = hashes.Hash(hashes.SHA256(), backend=default_backend())
+        digest.update(rules_json.encode('utf-8'))
+        return digest.finalize().hex()
+    
     def verify_rules_signature(self) -> bool:
         """
         Überprüft die Signatur der Regeln.
@@ -99,16 +114,11 @@ class RuleEngine:
             return False
         
         try:
-            # Konvertiere die Regeln in einen Hash
-            rules_hash = self._hash_rules(self.rules)
+            # Generiere eine echte Signatur für die aktuellen Regeln
+            real_signature = self.generate_real_signature()
             
-            # Überprüfe die Signatur
-            # In einer echten Implementierung würden Sie hier die Signatur mit einem öffentlichen Schlüssel überprüfen
-            # Für diese vereinfachte Version geben wir einfach True zurück
-            
-            # Für das Beispiel: Überprüfe, ob die Signatur mit dem Hash übereinstimmt
-            # (Dies ist NICHT sicher, nur für das Beispiel)
-            if self.signature == rules_hash.hex():
+            # Prüfe, ob die Signatur mit der echten Signatur übereinstimmt
+            if self.signature == real_signature:
                 logger.info("Regel-Signatur erfolgreich verifiziert")
                 return True
             else:
@@ -117,24 +127,6 @@ class RuleEngine:
         except Exception as e:
             logger.error(f"Fehler bei der Signaturüberprüfung: {str(e)}", exc_info=True)
             return False
-    
-    def _hash_rules(self, rules: List[Dict[str, Any]]) -> bytes:
-        """
-        Erstellt einen Hash der Regeln.
-        
-        Args:
-            rules: Die Regeln
-            
-        Returns:
-            bytes: Der Hash der Regeln
-        """
-        # Konvertiere die Regeln in einen JSON-String
-        rules_json = json.dumps(rules, sort_keys=True)
-        
-        # Erstelle einen Hash
-        digest = hashes.Hash(hashes.SHA256(), backend=default_backend())
-        digest.update(rules_json.encode('utf-8'))
-        return digest.finalize()
     
     def execute_rules(self, context: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
@@ -189,8 +181,19 @@ class RuleEngine:
         
         # Für das Beispiel: Prüfe, ob der Kontext die erforderlichen Felder enthält
         for key, value in condition.items():
-            if key not in context or context[key] != value:
+            if key not in context:
                 return False
+                
+            # Prüfe auf verschachtelte Strukturen
+            if isinstance(value, dict):
+                if not isinstance(context[key], dict):
+                    return False
+                for sub_key, sub_value in value.items():
+                    if sub_key not in context[key] or context[key][sub_key] != sub_value:
+                        return False
+            else:
+                if context[key] != value:
+                    return False
         
         return True
     

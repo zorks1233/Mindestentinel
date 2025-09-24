@@ -12,6 +12,7 @@ import datetime
 import torch
 from typing import Dict, Any, Optional, List, Tuple
 from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments, Trainer
+import json
 
 logger = logging.getLogger("mindestentinel.model_trainer")
 
@@ -57,14 +58,13 @@ class ModelTrainer:
             "early_stopping_patience": 3
         }
     
-    def train_new_model(self, goal_id: str, examples: List[Dict[str, Any]], base_model: str = "mistral-7b") -> Optional[str]:
+    def train_new_model(self, goal_id: str, examples: List[Dict[str, Any]]) -> Optional[str]:
         """
         Trainiert ein neues Modell basierend auf gesammelten Beispielen.
         
         Args:
             goal_id: Die ID des Lernziels
             examples: Die Wissensbeispiele
-            base_model: Das Basis-Modell
             
         Returns:
             Optional[str]: Der Name des neuen Modells, falls erfolgreich, sonst None
@@ -77,18 +77,24 @@ class ModelTrainer:
         self.current_training = {
             "goal_id": goal_id,
             "start_time": datetime.datetime.now().isoformat(),
-            "status": "started",
-            "base_model": base_model
+            "status": "started"
         }
         
         try:
             logger.info(f"Starte Training für neues Modell basierend auf Lernziel {goal_id}...")
             
-            # Hole das Basis-Modell
-            base_model_info = self.mm.get_model(base_model)
+            # Hole das Basis-Modell (verwende das erste verfügbare Modell)
+            base_models = self.mm.list_models()
+            if not base_models:
+                logger.error("Keine Basis-Modelle für das Training gefunden")
+                self._update_training_status("failed", error="Keine Basis-Modelle gefunden")
+                return None
+            
+            base_model_name = base_models[0]
+            base_model_info = self.mm.get_model(base_model_name)
             if not base_model_info:
-                logger.error(f"Basis-Modell {base_model} nicht gefunden")
-                self._update_training_status("failed", error=f"Basis-Modell {base_model} nicht gefunden")
+                logger.error(f"Basis-Modell {base_model_name} nicht gefunden")
+                self._update_training_status("failed", error=f"Basis-Modell {base_model_name} nicht gefunden")
                 return None
             
             # Bereite die Trainingsdaten vor
@@ -132,11 +138,14 @@ class ModelTrainer:
             model_metadata = {
                 "name": new_model_name,
                 "created_at": time.time(),
-                "base_model": base_model,
+                "base_model": base_model_name,
                 "training_goal": goal_id,
                 "training_examples": len(examples),
                 "training_duration": (time.time() - self.current_training["start_time"]),
-                "training_metrics": train_result.metrics,
+                "training_metrics": {
+                    "train_loss": train_result.training_loss,
+                    "epoch": train_result.epoch
+                },
                 "version": "1.0",
                 "description": f"Modell trainiert für Lernziel {goal_id}"
             }
@@ -167,16 +176,6 @@ class ModelTrainer:
             Optional[Any]: Die vorbereiteten Trainingsdaten, falls erfolgreich, sonst None
         """
         try:
-            # Hier würden Sie die Trainingsdaten vorbereiten
-            # Für diese vereinfachte Version geben wir nur ein Dummy-Dataset zurück
-            
-            # In einer echten Implementierung würden Sie die Beispiele in ein Format bringen,
-            # das vom Trainer verwendet werden kann (z.B. Dataset-Objekt)
-            
-            # Für das Beispiel erstellen wir ein leeres Dataset
-            # In der echten Implementierung würden Sie hier die Daten vorbereiten
-            from datasets import Dataset
-            
             # Konvertiere die Beispiele in ein Dataset
             formatted_examples = []
             for example in examples:
@@ -190,11 +189,12 @@ class ModelTrainer:
                 formatted_examples.append({"text": text})
             
             # Erstelle das Dataset
+            from datasets import Dataset
             dataset = Dataset.from_dict({"text": [ex["text"] for ex in formatted_examples]})
             
             # Tokenisiere das Dataset
             def tokenize_function(examples):
-                return tokenizer(examples["text"], padding="max_length", truncation=True, max_length=self.training_config["max_seq_length"])
+                return self.tokenizer(examples["text"], padding="max_length", truncation=True, max_length=self.training_config["max_seq_length"])
             
             tokenized_dataset = dataset.map(tokenize_function, batched=True)
             

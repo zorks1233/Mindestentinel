@@ -48,12 +48,47 @@ class ModelManager:
         
         logger.info(f"ModelManager initialisiert mit {len(self.models)} Modellen aus {self.models_dir}.")
     
+    def _is_valid_model_directory(self, model_path: str) -> bool:
+        """
+        Prüft, ob ein Verzeichnis ein gültiges Modell enthält.
+        
+        Args:
+            model_path: Pfad zum zu prüfenden Verzeichnis
+            
+        Returns:
+            bool: True, wenn es ein gültiges Modell ist, sonst False
+        """
+        # Prüfe, ob die erforderlichen Dateien existieren
+        required_files = [
+            "config.json",
+            ("pytorch_model.bin", "model.safetensors", "tf_model.h5", "model.ckpt.index", "flax_model.msgpack")
+        ]
+        
+        # Prüfe config.json
+        if not os.path.exists(os.path.join(model_path, "config.json")):
+            return False
+            
+        # Prüfe mindestens eine der Modell-Dateien
+        model_files_exist = False
+        for file_option in required_files[1]:
+            if os.path.exists(os.path.join(model_path, file_option)):
+                model_files_exist = True
+                break
+                
+        if not model_files_exist:
+            return False
+            
+        return True
+    
     def load_models(self):
         """Lädt alle Modelle aus dem Modell-Verzeichnis."""
         try:
             # Hole alle Unterordner im Modell-Verzeichnis
-            model_names = [d for d in os.listdir(self.models_dir) 
-                          if os.path.isdir(os.path.join(self.models_dir, d))]
+            model_names = []
+            for d in os.listdir(self.models_dir):
+                d_path = os.path.join(self.models_dir, d)
+                if os.path.isdir(d_path) and self._is_valid_model_directory(d_path):
+                    model_names.append(d)
             
             for model_name in model_names:
                 try:

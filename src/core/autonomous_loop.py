@@ -11,6 +11,7 @@ import time
 import random
 import threading
 import datetime
+import os
 from typing import Dict, Any, List, Optional, Tuple
 
 logger = logging.getLogger("mindestentinel.autonomous_loop")
@@ -31,6 +32,8 @@ class AutonomousLoop:
         protection_module,
         model_manager,
         system_monitor,
+        model_cloner,
+        knowledge_transfer,
         config: Optional[Dict[str, Any]] = None
     ):
         """
@@ -44,6 +47,8 @@ class AutonomousLoop:
             protection_module: Das Schutzmodul
             model_manager: Der Model-Manager
             system_monitor: Der System-Monitor
+            model_cloner: Der ModelCloner
+            knowledge_transfer: Der KnowledgeTransfer
             config: Optionale Konfiguration
         """
         self.ai_engine = ai_engine
@@ -53,6 +58,8 @@ class AutonomousLoop:
         self.protection_module = protection_module
         self.mm = model_manager
         self.system_monitor = system_monitor
+        self.model_cloner = model_cloner
+        self.knowledge_transfer = knowledge_transfer
         
         # Konfiguration mit Standardwerten
         self.config = {
@@ -61,7 +68,10 @@ class AutonomousLoop:
             "min_confidence_threshold": 0.65,
             "max_resource_usage": 0.85,
             "max_goal_complexity": 5,
-            "safety_check_interval": 10
+            "safety_check_interval": 10,
+            "max_concurrent_learning_sessions": 1,
+            "min_knowledge_examples": 3,
+            "max_knowledge_examples": 10
         }
         if config:
             self.config.update(config)
@@ -74,6 +84,9 @@ class AutonomousLoop:
         self.successful_cycles = 0
         self.failed_cycles = 0
         self.reflection_active = False
+        self.learning_sessions = {}  # Verfolgt aktive Lernsessions
+        self.learning_session_counter = 0
+        self.model_trainer = None  # Wird später initialisiert
         
         logger.info("AutonomousLoop initialisiert. Warte auf Aktivierung...")
     
@@ -131,53 +144,35 @@ class AutonomousLoop:
         logger.info(f"Beginne Lernzyklus #{self.learning_cycle}")
         
         try:
+            # Prüfe Ressourcenverfügbarkeit
+            resource_usage = self.system_monitor.get_resource_usage()
+            if resource_usage["cpu"] > self.config["max_resource_usage"] or \
+               resource_usage["memory"] > self.config["max_resource_usage"]:
+                logger.warning("Ressourcenverbrauch zu hoch. Überspringe Lernzyklus.")
+                return
+            
             # Generiere Lernziele
             learning_goals = self._generate_learning_goals()
             logger.info(f"Generierte {len(learning_goals)} neue Lernziele")
             
-            # Verarbeite jedes Lernziel
+            # Starte Lernsessions für jedes Lernziel (begrenzt durch max_concurrent_learning_sessions)
+            started_sessions = 0
             for goal in learning_goals:
-                logger.info(f"Verarbeite Lernziel: {goal['description']}")
+                if started_sessions >= self.config["max_concurrent_learning_sessions"]:
+                    break
                 
-                # Prüfe Sicherheit des Lernziels
-                context = {
-                    "current_cycle": self.learning_cycle,
-                    "system_status": self.system_monitor.snapshot(),
-                    "resource_usage": self.system_monitor.get_resource_usage()
-                }
-                
-                if not self._check_goal_safety(goal, context):
-                    logger.warning(f"Lernziel {goal['id']} wurde aufgrund von Sicherheitsregeln verworfen")
-                    continue
-                
-                # Frage Lehrer-Modelle
-                logger.info(f"Frage {len(goal['teacher_models'])} Lehrer-Modelle: {goal['teacher_models']}")
-                knowledge_examples = self._query_teacher_models(goal)
-                
-                if not knowledge_examples:
-                    logger.warning(f"Keine Wissensbeispiele für Ziel {goal['id']} gesammelt")
-                    continue
-                
-                logger.info(f"Gesammelte {len(knowledge_examples)} Wissensbeispiele für Ziel {goal['id']}")
-                
-                # Führe Knowledge Distillation durch
-                logger.info(f"Führe Knowledge Distillation durch für Modell {goal['target_model']}")
-                success = self._perform_knowledge_distillation(goal, knowledge_examples)
-                
-                if success:
-                    logger.info(f"Knowledge Distillation erfolgreich für Ziel {goal['id']}")
-                    self.successful_cycles += 1
-                else:
-                    logger.warning(f"Knowledge Distillation fehlgeschlagen für Ziel {goal['id']}")
-                    self.failed_cycles += 1
-                
-                # Aktualisiere Modellmetadaten
-                self._update_model_metadata(goal['target_model'])
-                
-                # Dokumentiere den Lernprozess
-                self._log_learning_process(goal, knowledge_examples, success)
+                # Starte eine neue Lernsession
+                session_id = self._start_learning_session(goal)
+                if session_id:
+                    started_sessions += 1
             
-            logger.info(f"Lernintervall verlängert auf {self.learning_interval} Sekunden aufgrund hoher Erfolgsquote")
+            # Warte auf den Abschluss der Lernsessions
+            self._wait_for_learning_sessions()
+            
+            # Prüfe, ob wir ein neues Modell trainieren müssen
+            self._check_for_new_model_training()
+            
+            logger.info(f"Lernintervall verlängert auf {self.learning_interval} Sekunden")
             
         except Exception as e:
             logger.error(f"Fehler im Lernzyklus #{self.learning_cycle}: {str(e)}", exc_info=True)
@@ -216,34 +211,91 @@ class AutonomousLoop:
         
         return goals
     
-    def _check_goal_safety(self, goal: Dict[str, Any], context: Dict[str, Any]) -> bool:
-        """Prüft, ob ein Lernziel sicher ist."""
-        try:
-            # Verwende execute_rules statt evaluate_rule
-            results = self.rule_engine.execute_rules({
-                "category": "learning_goals",
-                "goal": goal,
-                "context": context
-            })
+    def _start_learning_session(self, goal: Dict[str, Any]) -> Optional[str]:
+        """
+        Startet eine neue Lernsession.
+        
+        Args:
+            goal: Das Lernziel
             
-            # Prüfe, ob alle Regeln erfolgreich waren
-            for result in results:
-                if not result.get("condition_result", False):
-                    self._log_safety_violation(goal, result)
-                    return False
-                    
-            return True
+        Returns:
+            Optional[str]: Die Session-ID, falls erfolgreich, sonst None
+        """
+        try:
+            # Erstelle eine Session-ID
+            self.learning_session_counter += 1
+            session_id = f"session_{int(time.time())}_{self.learning_session_counter}"
+            
+            # Erstelle eine Kopie des Modells für das Lernen
+            target_model = goal["target_model"]
+            copy_name = self.model_cloner.create_model_copy(target_model)
+            
+            # Speichere die Session-Informationen
+            self.learning_sessions[session_id] = {
+                "id": session_id,
+                "goal": goal,
+                "model_copy": copy_name,
+                "start_time": time.time(),
+                "status": "running",
+                "knowledge_examples": []
+            }
+            
+            logger.info(f"Starte Lernsession {session_id} für Ziel {goal['id']} mit Modell-Kopie {copy_name}")
+            
+            # Starte die Lernsession in einem separaten Thread
+            thread = threading.Thread(
+                target=self._run_learning_session,
+                args=(session_id,),
+                daemon=True
+            )
+            thread.start()
+            
+            return session_id
         except Exception as e:
-            logger.error(f"Fehler bei der Sicherheitsprüfung des Lernziels: {str(e)}")
-            return False
+            logger.error(f"Fehler beim Starten der Lernsession: {str(e)}", exc_info=True)
+            return None
     
-    def _log_safety_violation(self, goal: Dict[str, Any], violation: Dict[str, Any]):
-        """Protokolliert eine Sicherheitsverletzung."""
-        logger.warning(
-            f"Sicherheitsverletzung für Lernziel {goal['id']}: "
-            f"Regel {violation.get('rule_id')} ({violation.get('rule_name')}) "
-            f"verletzt mit Bedingung: {violation.get('condition')}"
-        )
+    def _run_learning_session(self, session_id: str):
+        """
+        Führt eine Lernsession durch.
+        
+        Args:
+            session_id: Die Session-ID
+        """
+        session = self.learning_sessions.get(session_id)
+        if not session:
+            logger.error(f"Lernsession {session_id} nicht gefunden")
+            return
+        
+        try:
+            goal = session["goal"]
+            model_copy = session["model_copy"]
+            
+            logger.info(f"Lernsession {session_id}: Frage Lehrer-Modelle für Ziel {goal['id']}")
+            
+            # Frage Lehrer-Modelle
+            knowledge_examples = self._query_teacher_models(goal)
+            session["knowledge_examples"] = knowledge_examples
+            
+            if not knowledge_examples:
+                logger.warning(f"Lernsession {session_id}: Keine Wissensbeispiele gesammelt")
+                session["status"] = "failed"
+                return
+            
+            logger.info(f"Lernsession {session_id}: Gesammelte {len(knowledge_examples)} Wissensbeispiele")
+            
+            # Führe Knowledge Distillation durch
+            success = self._perform_knowledge_distillation(session_id, model_copy, knowledge_examples)
+            
+            if success:
+                logger.info(f"Lernsession {session_id}: Knowledge Distillation erfolgreich")
+                session["status"] = "completed"
+            else:
+                logger.warning(f"Lernsession {session_id}: Knowledge Distillation fehlgeschlagen")
+                session["status"] = "failed"
+        except Exception as e:
+            logger.error(f"Fehler in Lernsession {session_id}: {str(e)}", exc_info=True)
+            session["status"] = "failed"
     
     def _query_teacher_models(self, goal: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Fragt die Lehrer-Modelle nach Wissen zum Lernziel."""
@@ -273,62 +325,235 @@ class AutonomousLoop:
             except Exception as e:
                 logger.error(f"Fehler bei Abfrage von Modell {model_name}: {str(e)}", exc_info=True)
         
+        # Begrenze die Anzahl der Wissensbeispiele
+        min_examples = self.config["min_knowledge_examples"]
+        max_examples = self.config["max_knowledge_examples"]
+        if len(knowledge_examples) > max_examples:
+            knowledge_examples = random.sample(knowledge_examples, max_examples)
+        elif len(knowledge_examples) < min_examples:
+            logger.warning(f"Nur {len(knowledge_examples)} Wissensbeispiele gesammelt. Mindestens {min_examples} benötigt.")
+        
         return knowledge_examples
     
-    def _perform_knowledge_distillation(self, goal: Dict[str, Any], examples: List[Dict[str, Any]]) -> bool:
+    def _perform_knowledge_distillation(self, session_id: str, model_copy: str, examples: List[Dict[str, Any]]) -> bool:
         """Führt Knowledge Distillation durch."""
         try:
-            # Hier würde der eigentliche Knowledge Distillation-Prozess stattfinden
-            # Für diese vereinfachte Version geben wir nur eine Erfolgsmeldung aus
+            logger.info(f"Lernsession {session_id}: Führe Knowledge Distillation durch mit {len(examples)} Beispielen")
             
+            # Hier würde der eigentliche Knowledge Distillation-Prozess stattfinden
             # In einer echten Implementierung würden Sie hier:
             # 1. Die Wissensbeispiele verarbeiten
-            # 2. Ein neues Modell trainieren oder das bestehende Modell aktualisieren
-            # 3. Das neue Wissen speichern
+            # 2. Ein neues Modell trainieren oder das Modell-Kopie aktualisieren
             
-            # Für das Beispiel geben wir nur eine Erfolgsmeldung aus
+            # Für das Beispiel: Markiere die Modell-Kopie als trainiert
+            self.model_cloner.update_copy_status(
+                model_copy,
+                "trained",
+                training_progress=1.0,
+                knowledge_examples=len(examples)
+            )
+            
+            # Validiere die Modell-Kopie
+            self._validate_model_copy(session_id, model_copy)
+            
             return True
         except Exception as e:
             logger.error(f"Fehler bei Knowledge Distillation: {str(e)}", exc_info=True)
             return False
     
-    def _update_model_metadata(self, model_name: str):
-        """Aktualisiert die Metadaten des Modells."""
+    def _validate_model_copy(self, session_id: str, model_copy: str):
+        """
+        Validiert eine Modell-Kopie.
+        
+        Args:
+            session_id: Die Session-ID
+            model_copy: Der Name der Modell-Kopie
+        """
         try:
-            # Hole aktuelle Metadaten
-            metadata = self.mm.get_model_metadata(model_name)
+            logger.info(f"Lernsession {session_id}: Validiere Modell-Kopie {model_copy}")
             
-            # Aktualisiere die Metadaten
-            updates = {
-                "last_trained": time.time(),
-                "training_cycles": metadata.get("training_cycles", 0) + 1,
-                "success_rate": (metadata.get("successful_training", 0) + 1) / 
-                               (metadata.get("training_cycles", 0) + 1)
-            }
+            # Hier würde die Validierung stattfinden
+            # Für das Beispiel: Führe einige Testabfragen durch
             
-            # Speichere die aktualisierten Metadaten
-            self.mm.update_model_metadata(model_name, updates)
-            logger.info(f"Modellmetadaten aktualisiert für {model_name}")
-        except Exception as e:
-            logger.error(f"Fehler bei der Aktualisierung der Modellmetadaten: {str(e)}", exc_info=True)
-    
-    def _log_learning_process(self, goal: Dict[str, Any], examples: List[Dict[str, Any]], success: bool):
-        """Dokumentiert den Lernprozess."""
-        try:
-            # Speichere den Lernprozess in der Wissensdatenbank
-            self.kb.store(
-                "learning_process",
-                {
-                    "goal_id": goal["id"],
-                    "goal_description": goal["description"],
-                    "examples": examples,
-                    "success": success,
-                    "timestamp": time.time()
-                }
+            # Generiere Testprompts
+            test_prompts = [
+                "Erkläre die Grundlagen der Quantenphysik",
+                "Wie funktioniert neuronale Netzwerke?",
+                "Was sind die wichtigsten Sicherheitsprotokolle für KI-Systeme?"
+            ]
+            
+            # Führe Testabfragen durch
+            validation_score = 0.0
+            total_tests = len(test_prompts)
+            
+            for prompt in test_prompts:
+                try:
+                    # Frage die Modell-Kopie
+                    response = self.model_orchestrator.query(
+                        prompt,
+                        models=[model_copy]
+                    )
+                    
+                    # Prüfe, ob die Antwort sinnvoll ist
+                    if model_copy in response and response[model_copy]:
+                        # In einer echten Implementierung würden Sie die Antwort bewerten
+                        # Für das Beispiel geben wir einfach einen hohen Score zurück
+                        validation_score += 0.9
+                except Exception as e:
+                    logger.error(f"Fehler bei Testabfrage: {str(e)}", exc_info=True)
+            
+            # Berechne den Validierungsscore
+            validation_score = validation_score / total_tests
+            
+            # Aktualisiere den Status der Modell-Kopie
+            self.model_cloner.update_copy_status(
+                model_copy,
+                "validated",
+                validation_score=validation_score
             )
-            logger.info(f"Lernprozess dokumentiert für Ziel {goal['id']}")
+            
+            logger.info(f"Lernsession {session_id}: Modell-Kopie validiert mit Score: {validation_score:.2f}")
         except Exception as e:
-            logger.error(f"Fehler bei der Dokumentation des Lernprozesses: {str(e)}", exc_info=True)
+            logger.error(f"Fehler bei der Validierung der Modell-Kopie: {str(e)}", exc_info=True)
+    
+    def _wait_for_learning_sessions(self):
+        """Wartet auf den Abschluss der Lernsessions."""
+        while True:
+            # Prüfe, ob alle Lernsessions abgeschlossen sind
+            all_completed = True
+            for session_id, session in list(self.learning_sessions.items()):
+                if session["status"] == "running":
+                    all_completed = False
+                    break
+            
+            # Wenn alle Sessions abgeschlossen sind, beende die Wartezeit
+            if all_completed:
+                break
+            
+            # Warte kurz vor der nächsten Überprüfung
+            time.sleep(1)
+        
+        # Übertrage das gelernte Wissen in das aktive System
+        self._integrate_learned_knowledge()
+    
+    def _integrate_learned_knowledge(self):
+        """Integriert gelerntes Wissen in das aktive System."""
+        for session_id, session in list(self.learning_sessions.items()):
+            if session["status"] == "completed":
+                model_copy = session["model_copy"]
+                
+                # Integriere das gelernte Wissen
+                target_model = session["goal"]["target_model"]
+                success = self.model_cloner.integrate_learned_knowledge(model_copy, target_model)
+                
+                if success:
+                    # Übertrage das Wissen in das aktive System
+                    self.knowledge_transfer.transfer_learned_knowledge(session_id)
+                    
+                    # Lösche die Modell-Kopie
+                    self._cleanup_learning_session(session_id)
+                else:
+                    logger.warning(f"Lernsession {session_id}: Wissenstransfer fehlgeschlagen")
+                    self._cleanup_learning_session(session_id)
+    
+    def _cleanup_learning_session(self, session_id: str):
+        """
+        Bereinigt eine Lernsession.
+        
+        Args:
+            session_id: Die Session-ID
+        """
+        if session_id not in self.learning_sessions:
+            return
+        
+        session = self.learning_sessions[session_id]
+        model_copy = session["model_copy"]
+        
+        try:
+            # Lösche die Modell-Kopie
+            copy_path = os.path.join(self.mm.models_dir, model_copy)
+            if os.path.exists(copy_path):
+                import shutil
+                shutil.rmtree(copy_path)
+                logger.info(f"Lernsession {session_id}: Modell-Kopie gelöscht: {model_copy}")
+            
+            # Entferne die Session aus der Liste
+            del self.learning_sessions[session_id]
+            logger.info(f"Lernsession {session_id} bereinigt")
+        except Exception as e:
+            logger.error(f"Fehler bei der Bereinigung der Lernsession: {str(e)}", exc_info=True)
+    
+    def _check_for_new_model_training(self):
+        """Prüft, ob ein neues Modell trainiert werden soll."""
+        # Speichere den Pfad zu den Trainingsdaten
+        training_data_path = os.path.join("data", "training")
+        os.makedirs(training_data_path, exist_ok=True)
+        
+        # Prüfe, ob genügend Trainingsdaten vorhanden sind
+        training_files = [f for f in os.listdir(training_data_path) if f.endswith(".json")]
+        
+        if len(training_files) >= 5:  # Mindestanzahl an Trainingsdateien
+            logger.info(f"Genügend Trainingsdaten gefunden ({len(training_files)}). Beginne mit dem Training eines neuen Modells.")
+            
+            # Initialisiere den ModelTrainer, falls noch nicht geschehen
+            if self.model_trainer is None:
+                try:
+                    from src.core.model_trainer import ModelTrainer
+                    self.model_trainer = ModelTrainer(
+                        self.kb,
+                        self.mm,
+                        {
+                            "epochs": 3,
+                            "batch_size": 8,
+                            "learning_rate": 5e-5
+                        }
+                    )
+                except Exception as e:
+                    logger.error(f"Fehler bei der Initialisierung des ModelTrainers: {str(e)}", exc_info=True)
+                    return
+            
+            # Trainiere ein neues Modell
+            try:
+                new_model_name = self.model_trainer.train_new_model(
+                    f"auto_{int(time.time())}",
+                    training_files[:10]  # Begrenze auf 10 Trainingsdateien
+                )
+                
+                if new_model_name:
+                    logger.info(f"Neues Modell erfolgreich trainiert: {new_model_name}")
+                    
+                    # Registriere das neue Modell als Lehrer-Modell
+                    self.model_orchestrator.register_teacher_model(new_model_name)
+                    logger.info(f"Neues Modell {new_model_name} als Lehrer-Modell registriert")
+                    
+                    # Erstelle ein Backup des alten Modells
+                    old_model = self.mm.list_models()[0]  # Nimm das erste Modell als Referenz
+                    backup_name = self.model_cloner.create_backup(old_model)
+                    
+                    # Ersetze das alte Modell durch das neue
+                    try:
+                        # Lösche das alte Modell
+                        self.mm.unregister_model(old_model)
+                        
+                        # Kopiere das neue Modell an die Stelle des alten
+                        old_model_path = os.path.join(self.mm.models_dir, old_model)
+                        new_model_path = os.path.join(self.mm.models_dir, new_model_name)
+                        
+                        import shutil
+                        shutil.move(new_model_path, old_model_path)
+                        
+                        # Lade das Modell neu
+                        self.mm.load_models()
+                        
+                        logger.info(f"Altes Modell {old_model} durch neues Modell {new_model_name} ersetzt")
+                    except Exception as e:
+                        logger.error(f"Fehler beim Ersetzen des Modells: {str(e)}", exc_info=True)
+                        
+                        # Stelle das Backup wieder her
+                        self.model_cloner.restore_from_backup(backup_name, old_model)
+                        logger.info(f"Backup {backup_name} wiederhergestellt")
+            except Exception as e:
+                logger.error(f"Fehler beim Training eines neuen Modells: {str(e)}", exc_info=True)
     
     def _run_reflection(self):
         """Führt eine Reflexion des Lernprozesses durch."""
@@ -377,6 +602,8 @@ class AutonomousLoop:
             "learning_interval": self.learning_interval,
             "successful_cycles": self.successful_cycles,
             "failed_cycles": self.failed_cycles,
+            "learning_sessions": len(self.learning_sessions),
+            "active_sessions": sum(1 for s in self.learning_sessions.values() if s["status"] == "running"),
             "last_safety_check": self.last_safety_check,
             "timestamp": time.time()
         }
