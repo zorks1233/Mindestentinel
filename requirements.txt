@@ -25,4 +25,4 @@ accelerate
 peft
 bitsandbytes
 passlib
-bcrypt
+bcrypt==4.2.1
