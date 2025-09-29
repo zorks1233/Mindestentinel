@@ -34,6 +34,8 @@ class AutonomousLoop:
         system_monitor,
         model_cloner,
         knowledge_transfer,
+        model_trainer,
+        simulation_engine=None,
         config: Optional[Dict[str, Any]] = None
     ):
         """
@@ -49,6 +51,8 @@ class AutonomousLoop:
             system_monitor: Der System-Monitor
             model_cloner: Der ModelCloner
             knowledge_transfer: Der KnowledgeTransfer
+            model_trainer: Der ModelTrainer
+            simulation_engine: Die Simulation-Engine (optional)
             config: Optionale Konfiguration
         """
         self.ai_engine = ai_engine
@@ -60,6 +64,9 @@ class AutonomousLoop:
         self.system_monitor = system_monitor
         self.model_cloner = model_cloner
         self.knowledge_transfer = knowledge_transfer
+        self.model_trainer = model_trainer
+        self.simulation_engine = simulation_engine
+        self.thread = None
         
         # Konfiguration mit Standardwerten
         self.config = {
@@ -71,7 +78,9 @@ class AutonomousLoop:
             "safety_check_interval": 10,
             "max_concurrent_learning_sessions": 1,
             "min_knowledge_examples": 3,
-            "max_knowledge_examples": 10
+            "max_knowledge_examples": 10,
+            "min_simulation_safety_score": 0.7,
+            "min_simulation_effectiveness_score": 0.6
         }
         if config:
             self.config.update(config)
@@ -86,7 +95,6 @@ class AutonomousLoop:
         self.reflection_active = False
         self.learning_sessions = {}  # Verfolgt aktive Lernsessions
         self.learning_session_counter = 0
-        self.model_trainer = None  # Wird später initialisiert
         
         logger.info("AutonomousLoop initialisiert. Warte auf Aktivierung...")
     
@@ -171,6 +179,9 @@ class AutonomousLoop:
             
             # Prüfe, ob wir ein neues Modell trainieren müssen
             self._check_for_new_model_training()
+            
+            # Prüfe, ob wir eine Simulation durchführen müssen
+            self._check_for_simulations()
             
             logger.info(f"Lernintervall verlängert auf {self.learning_interval} Sekunden")
             
@@ -495,23 +506,6 @@ class AutonomousLoop:
         if len(training_files) >= 5:  # Mindestanzahl an Trainingsdateien
             logger.info(f"Genügend Trainingsdaten gefunden ({len(training_files)}). Beginne mit dem Training eines neuen Modells.")
             
-            # Initialisiere den ModelTrainer, falls noch nicht geschehen
-            if self.model_trainer is None:
-                try:
-                    from src.core.model_trainer import ModelTrainer
-                    self.model_trainer = ModelTrainer(
-                        self.kb,
-                        self.mm,
-                        {
-                            "epochs": 3,
-                            "batch_size": 8,
-                            "learning_rate": 5e-5
-                        }
-                    )
-                except Exception as e:
-                    logger.error(f"Fehler bei der Initialisierung des ModelTrainers: {str(e)}", exc_info=True)
-                    return
-            
             # Trainiere ein neues Modell
             try:
                 new_model_name = self.model_trainer.train_new_model(
@@ -554,6 +548,79 @@ class AutonomousLoop:
                         logger.info(f"Backup {backup_name} wiederhergestellt")
             except Exception as e:
                 logger.error(f"Fehler beim Training eines neuen Modells: {str(e)}", exc_info=True)
+    
+    def _check_for_simulations(self):
+        """Prüft, ob Simulationen durchgeführt werden müssen."""
+        if not self.simulation_engine:
+            logger.warning("Simulation-Engine nicht initialisiert. Simulationen werden übersprungen.")
+            return
+        
+        # Prüfe, ob genügend Trainingsdaten vorhanden sind
+        training_data_path = os.path.join("data", "training")
+        os.makedirs(training_data_path, exist_ok=True)
+        
+        training_files = [f for f in os.listdir(training_data_path) if f.endswith(".json")]
+        
+        if len(training_files) >= 3:  # Mindestanzahl an Trainingsdateien für Simulation
+            logger.info(f"Genügend Trainingsdaten für Simulation gefunden ({len(training_files)}).")
+            
+            # Erstelle eine Hypothese
+            hypothesis_id = f"hypothesis_{int(time.time())}"
+            hypothesis = {
+                "id": hypothesis_id,
+                "description": "Verbessere das Verständnis von kognitiven Prozessen",
+                "training_files": training_files[:5],
+                "target_model": self.mm.list_models()[0]
+            }
+            
+            # Führe die Simulation durch
+            simulation_result = self.simulation_engine.run_hypothesis(hypothesis_id, hypothesis)
+            
+            if simulation_result["success"]:
+                logger.info(f"Simulation erfolgreich (Sicherheit: {simulation_result['safety_score']:.2f}, Effektivität: {simulation_result['effectiveness_score']:.2f})")
+                
+                # Prüfe, ob die Simulation gut genug war
+                if simulation_result["safety_score"] >= self.config["min_simulation_safety_score"] and \
+                   simulation_result["effectiveness_score"] >= self.config["min_simulation_effectiveness_score"]:
+                    logger.info("Simulationsergebnis akzeptabel. Beginne mit dem eigentlichen Lernen...")
+                    
+                    # Führe das eigentliche Lernen durch
+                    self._run_actual_learning(hypothesis)
+                else:
+                    logger.warning("Simulationsergebnis nicht ausreichend gut. Überspringe Lernen.")
+            else:
+                logger.error(f"Simulation fehlgeschlagen: {simulation_result.get('error', 'Unbekannter Fehler')}")
+    
+    def _run_actual_learning(self, hypothesis: Dict[str, Any]):
+        """
+        Führt das eigentliche Lernen basierend auf einer Hypothese durch.
+        
+        Args:
+            hypothesis: Die Hypothese
+        """
+        logger.info(f"Starte tatsächliches Lernen basierend auf Hypothese {hypothesis['id']}")
+        
+        try:
+            # Erstelle ein Lernziel aus der Hypothese
+            goal = {
+                "id": f"goal_{hypothesis['id']}",
+                "description": hypothesis["description"],
+                "complexity": 3,  # Mittlere Komplexität
+                "priority": 0.8,  # Hohe Priorität
+                "teacher_models": self.mm.list_models(),
+                "target_model": hypothesis["target_model"],
+                "required_resources": ["cpu", "memory"],
+                "created_at": time.time()
+            }
+            
+            # Starte eine neue Lernsession
+            session_id = self._start_learning_session(goal)
+            if session_id:
+                logger.info(f"Lernsession {session_id} gestartet für Hypothese {hypothesis['id']}")
+            else:
+                logger.error(f"Fehler beim Starten der Lernsession für Hypothese {hypothesis['id']}")
+        except Exception as e:
+            logger.error(f"Fehler beim Starten des eigentlichen Lernens: {str(e)}", exc_info=True)
     
     def _run_reflection(self):
         """Führt eine Reflexion des Lernprozesses durch."""

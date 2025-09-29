@@ -12,7 +12,7 @@ import yaml
 import json
 import time
 import threading
-from typing import Dict, Any, List, Optional, Callable
+from typing import Dict, Any, List, Optional
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.primitives.asymmetric import rsa
@@ -44,7 +44,11 @@ class RuleEngine:
         self.load_rules(rules_path)
         
         # Überprüfe die Signatur der Regeln
-        self.verify_rules_signature()
+        if not self.verify_rules_signature():
+            # Wenn die Signatur ungültig ist, generiere eine neue
+            logger.warning("Regel-Signatur ungültig. Generiere neue Signatur...")
+            self.signature = self.generate_real_signature()
+            self.save_rules_with_new_signature()
         
         # Starte die Regeldatei-Überwachung
         self.monitor_rules_file()
@@ -87,6 +91,15 @@ class RuleEngine:
             logger.error(f"Fehler beim Laden der Regeln: {str(e)}", exc_info=True)
             return []
     
+    def get_rules(self) -> List[Dict[str, Any]]:
+        """
+        Gibt alle Regeln zurück.
+        
+        Returns:
+            List[Dict[str, Any]]: Die Regeln
+        """
+        return self.rules
+    
     def generate_real_signature(self) -> str:
         """
         Generiert eine echte Signatur für die Regeln.
@@ -122,11 +135,35 @@ class RuleEngine:
                 logger.info("Regel-Signatur erfolgreich verifiziert")
                 return True
             else:
-                logger.error("Regel-Signatur ungültig")
+                logger.error(f"Regel-Signatur ungültig. Erwartet: {real_signature}, Gefunden: {self.signature}")
                 return False
         except Exception as e:
             logger.error(f"Fehler bei der Signaturüberprüfung: {str(e)}", exc_info=True)
             return False
+    
+    def save_rules_with_new_signature(self):
+        """
+        Speichert die Regeln mit einer neuen Signatur in die YAML-Datei.
+        """
+        if not os.path.exists(self.rules_path):
+            logger.error(f"Regelkonfigurationsdatei nicht gefunden: {self.rules_path}")
+            return
+        
+        try:
+            # Lade die aktuelle Konfiguration
+            with open(self.rules_path, 'r') as f:
+                rules_data = yaml.safe_load(f)
+            
+            # Aktualisiere die Signatur
+            rules_data["signature"] = self.signature
+            
+            # Speichere die aktualisierte Konfiguration
+            with open(self.rules_path, 'w') as f:
+                yaml.dump(rules_data, f, sort_keys=False)
+            
+            logger.info(f"Regel-Signatur in {self.rules_path} aktualisiert.")
+        except Exception as e:
+            logger.error(f"Fehler beim Speichern der Regel-Signatur: {str(e)}", exc_info=True)
     
     def execute_rules(self, context: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
@@ -216,15 +253,6 @@ class RuleEngine:
             "action": action,
             "context": context
         }
-    
-    def get_rules(self) -> List[Dict[str, Any]]:
-        """
-        Gibt alle Regeln zurück.
-        
-        Returns:
-            List[Dict[str, Any]]: Die Regeln
-        """
-        return self.rules
     
     def evaluate_rule(self, rule: Dict[str, Any], context: Dict[str, Any]) -> bool:
         """

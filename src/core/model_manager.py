@@ -11,7 +11,7 @@ import os
 import json
 import time
 import threading
-from typing import Dict, Any, Optional, List, Callable
+from typing import Dict, Any, Optional, List
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 logger = logging.getLogger("mindestentinel.model_manager")
@@ -45,6 +45,9 @@ class ModelManager:
         
         # Lade die Modell-Registry
         self.load_model_registry()
+        
+        # Starte die Modellverzeichnis-Überwachung
+        self.monitor_model_directory()
         
         logger.info(f"ModelManager initialisiert mit {len(self.models)} Modellen aus {self.models_dir}.")
     

@@ -1,364 +1,346 @@
 # src/core/knowledge_base.py
 """
-knowledge_base.py - Verschlüsselte Wissensdatenbank für Mindestentinel
+knowledge_base.py - Wissensdatenbank für Mindestentinel
 
-Diese Datei implementiert eine verschlüsselte SQLite-Datenbank für das Speichern von Wissen.
-Alle sensiblen Daten werden vor dem Speichern verschlüsselt und nach dem Abrufen entschlüsselt.
+Diese Datei implementiert die Wissensdatenbank für das System.
+Es ermöglicht das Speichern, Abrufen und Verwalten von Wissen.
 """
 
 import logging
-import sqlite3
 import os
+import sqlite3
 import json
-from typing import Dict, Any, List, Optional, Tuple
-import datetime
-from cryptography.fernet import Fernet
 import base64
+import time
+from typing import Dict, Any, Optional, List, Tuple
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.hazmat.backends import default_backend
+from cryptography.fernet import Fernet
 
 logger = logging.getLogger("mindestentinel.knowledge_base")
 
 class KnowledgeBase:
     """
-    Verschlüsselte Wissensdatenbank für Mindestentinel.
+    Verwaltet die Wissensdatenbank für das System.
     
-    Alle Daten werden vor dem Speichern verschlüsselt und nach dem Abrufen entschlüsselt.
-    Verwendet Fernet (symmetrische Verschlüsselung) für die Datensicherheit.
+    Lädt, speichert und verwaltet Wissen und Metadaten.
     """
     
-    def __init__(self, db_path: str = "data/knowledge/knowledge.db", key_path: str = "data/knowledge/encryption.key"):
+    def __init__(self, db_path: str = "data/knowledge/knowledge.db", encryption_key: Optional[bytes] = None):
         """
-        Initialisiert die verschlüsselte Wissensdatenbank.
+        Initialisiert die Wissensdatenbank.
         
         Args:
-            db_path: Pfad zur SQLite-Datenbank
-            key_path: Pfad zum Verschlüsselungsschlüssel
+            db_path: Pfad zur Datenbankdatei
+            encryption_key: Optionaler Verschlüsselungsschlüssel
         """
-        self.db_path = db_path
-        self.key_path = key_path
-        
-        # Erstelle Verzeichnisse, falls nicht vorhanden
+        # Erstelle das Datenbank-Verzeichnis, falls nicht vorhanden
         os.makedirs(os.path.dirname(db_path), exist_ok=True)
         
-        # Initialisiere Verschlüsselung
-        self._init_encryption()
+        self.db_path = db_path
+        self.encryption_key = encryption_key
         
-        # Initialisiere Datenbank
-        self._init_db()
+        # Initialisiere das Verschlüsselungssystem
+        self._initialize_encryption()
         
-        logger.info(f"Wissensdatenbank initialisiert: {db_path}")
+        # Initialisiere die Datenbankstruktur
+        self._initialize_database()
+        
+        logger.info(f"Wissensdatenbank initialisiert: {self.db_path}")
     
-    def _init_encryption(self):
-        """Initialisiert die Verschlüsselung für die Datenbank."""
-        # Falls Schlüssel nicht existiert, erstelle einen neuen
-        if not os.path.exists(self.key_path):
-            # Generiere einen sicheren Schlüssel
-            key = Fernet.generate_key()
-            os.makedirs(os.path.dirname(self.key_path), exist_ok=True)
-            with open(self.key_path, 'wb') as f:
-                f.write(key)
-            logger.info("Neuer Verschlüsselungsschlüssel generiert und gespeichert.")
+    def _initialize_encryption(self):
+        """Initialisiert das Verschlüsselungssystem."""
+        # Generiere einen Schlüssel, falls keiner vorhanden ist
+        if not self.encryption_key:
+            try:
+                # Versuche, den Schlüssel aus einer Datei zu laden
+                key_path = os.path.join(os.path.dirname(self.db_path), "encryption.key")
+                if os.path.exists(key_path):
+                    with open(key_path, 'rb') as f:
+                        self.encryption_key = f.read()
+                else:
+                    # Erstelle einen neuen Schlüssel
+                    self.encryption_key = Fernet.generate_key()
+                    with open(key_path, 'wb') as f:
+                        f.write(self.encryption_key)
+                    logger.info("Neuer Verschlüsselungsschlüssel generiert und gespeichert.")
+            except Exception as e:
+                logger.warning(f"Fehler bei der Schlüsselinitialisierung: {str(e)}. Verwende unverschlüsselten Modus.")
+                self.encryption_key = None
         
-        # Lade den Schlüssel
-        with open(self.key_path, 'rb') as f:
-            key = f.read()
-        
-        # Initialisiere den Verschlüsselungscipher
-        self.cipher = Fernet(key)
+        # Erstelle den Fernet-Handler
+        self.fernet = Fernet(self.encryption_key) if self.encryption_key else None
         logger.debug("Verschlüsselungssystem initialisiert.")
     
-    def _init_db(self):
+    def _initialize_database(self):
         """Initialisiert die Datenbankstruktur."""
+        try:
+            # Erstelle die Wissens-Tabelle, falls nicht vorhanden
+            self.execute("""
+                CREATE TABLE IF NOT EXISTS knowledge (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    category TEXT NOT NULL,
+                    data TEXT NOT NULL,
+                    metadata TEXT NOT NULL,
+                    created_at REAL NOT NULL,
+                    updated_at REAL NOT NULL
+                )
+            """)
+            logger.info("Datenbankstruktur initialisiert.")
+        except Exception as e:
+            logger.error(f"Fehler bei der Initialisierung der Datenbankstruktur: {str(e)}", exc_info=True)
+    
+    def execute(self, query: str, params: Tuple = ()) -> None:
+        """
+        Führt eine SQL-Abfrage aus (für INSERT, UPDATE, DELETE).
+        
+        Args:
+            query: Die SQL-Abfrage
+            params: Parameter für die Abfrage
+        """
+        conn = None
         try:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
-            
-            # Erstelle die Haupttabelle für Wissen
-            cursor.execute("""
-            CREATE TABLE IF NOT EXISTS knowledge (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                category TEXT NOT NULL,
-                encrypted_data BLOB NOT NULL,
-                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-                metadata TEXT
-            )
-            """)
-            
-            # Erstelle eine Tabelle für Systemstatistiken
-            cursor.execute("""
-            CREATE TABLE IF NOT EXISTS system_stats (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                stat_type TEXT NOT NULL,
-                encrypted_value BLOB NOT NULL,
-                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-            """)
-            
-            # Erstelle eine Tabelle für Lernhistorie
-            cursor.execute("""
-            CREATE TABLE IF NOT EXISTS learning_history (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                goal_id TEXT NOT NULL,
-                encrypted_data BLOB NOT NULL,
-                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-            """)
-            
-            # Erstelle Benutzertabelle, falls nicht vorhanden
-            cursor.execute("""
-            CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                username TEXT UNIQUE NOT NULL,
-                password_hash TEXT NOT NULL,
-                is_admin BOOLEAN DEFAULT 0,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                last_login DATETIME
-            )
-            """)
-            
+            cursor.execute(query, params)
             conn.commit()
-            conn.close()
-            logger.info("Datenbankstruktur initialisiert.")
         except Exception as e:
-            logger.error(f"Fehler bei der Datenbankinitialisierung: {str(e)}", exc_info=True)
+            logger.error(f"Fehler bei der Datenbankausführung: {str(e)}", exc_info=True)
+            if conn:
+                conn.rollback()
             raise
+        finally:
+            if conn:
+                conn.close()
     
-    def store(self, category: str, data: Dict[str, Any], meta: Optional[Dict[str, Any]] = None) -> int:
+    def select(self, query: str, params: Tuple = (), decrypt_column: Optional[int] = None) -> List[Tuple]:
         """
-        Speichert Daten in der Wissensdatenbank.
+        Führt eine SELECT-Abfrage aus und gibt die Ergebnisse zurück.
         
         Args:
-            category: Die Kategorie der Daten
+            query: Die SQL-Abfrage
+            params: Parameter für die Abfrage
+            decrypt_column: Index der Spalte, die entschlüsselt werden soll (optional)
+            
+        Returns:
+            List[Tuple]: Die Ergebnisse der Abfrage
+        """
+        conn = None
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            cursor.execute(query, params)
+            results = cursor.fetchall()
+            
+            # Entschlüssele die angegebene Spalte, falls erforderlich
+            if decrypt_column is not None and self.fernet:
+                decrypted_results = []
+                for row in results:
+                    new_row = list(row)
+                    try:
+                        # Entschlüssele die angegebene Spalte
+                        encrypted_data = row[decrypt_column]
+                        if isinstance(encrypted_data, str):
+                            decrypted_data = self.fernet.decrypt(encrypted_data.encode()).decode()
+                            new_row[decrypt_column] = decrypted_data
+                        decrypted_results.append(tuple(new_row))
+                    except Exception as e:
+                        logger.error(f"Fehler bei der Entschlüsselung: {str(e)}", exc_info=True)
+                        decrypted_results.append(row)
+                return decrypted_results
+            
+            return results
+        except Exception as e:
+            logger.error(f"Fehler bei der Datenbankabfrage: {str(e)}", exc_info=True)
+            return []
+        finally:
+            if conn:
+                conn.close()
+    
+    def store(self, category: str, data: Dict[str, Any], metadata: Optional[Dict[str, Any]] = None) -> int:
+        """
+        Speichert Wissen in der Datenbank.
+        
+        Args:
+            category: Die Kategorie des Wissens
             data: Die zu speichernden Daten
-            meta: Optionale Metadaten
+            metadata: Optionale Metadaten
             
         Returns:
             int: Die ID des gespeicherten Eintrags
         """
         try:
-            # Verschlüssele die Daten
-            encrypted_data = self._encrypt_data(data)
+            # Verschlüssele die Daten, falls erforderlich
+            encrypted_data = json.dumps(data)
+            if self.fernet:
+                encrypted_data = self.fernet.encrypt(encrypted_data.encode()).decode()
             
             # Vorbereiten der Metadaten
-            metadata_json = json.dumps(meta) if meta else None
+            metadata = metadata or {}
+            metadata["category"] = category
+            metadata["created_at"] = time.time()
+            metadata["updated_at"] = time.time()
             
-            # Speichere in der Datenbank
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
+            # Speichern in der Datenbank
+            self.execute(
+                "INSERT INTO knowledge (category, data, metadata, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+                (category, encrypted_data, json.dumps(metadata), time.time(), time.time())
+            )
             
-            cursor.execute("""
-            INSERT INTO knowledge (category, encrypted_data, metadata)
-            VALUES (?, ?, ?)
-            """, (category, encrypted_data, metadata_json))
-            
-            entry_id = cursor.lastrowid
-            conn.commit()
-            conn.close()
-            
-            logger.debug(f"Gespeichert: Kategorie={category}, ID={entry_id}")
-            return entry_id
+            # Hole die ID des neuen Eintrags
+            result = self.select("SELECT last_insert_rowid()")
+            if result and len(result) > 0:
+                return result[0][0]
+            return -1
         except Exception as e:
-            logger.error(f"Fehler beim Speichern in der Wissensdatenbank: {str(e)}", exc_info=True)
-            raise
+            logger.error(f"Fehler beim Speichern von Wissen: {str(e)}", exc_info=True)
+            return -1
     
-    def query(self, sql: str, params: tuple = ()) -> int:
+    def get(self, entry_id: int) -> Optional[Dict[str, Any]]:
         """
-        Führt eine Abfrage auf der Datenbank aus.
+        Holt einen Wissenseintrag aus der Datenbank.
         
         Args:
-            sql: Die SQL-Abfrage
-            params: Optionale Parameter für die Abfrage
+            entry_id: Die ID des Eintrags
             
         Returns:
-            int: Anzahl betroffener Zeilen
+            Optional[Dict[str, Any]]: Der Wissenseintrag, falls gefunden, sonst None
         """
         try:
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
-            cursor.execute(sql, params)
+            result = self.select(
+                "SELECT category, data, metadata FROM knowledge WHERE id = ?",
+                (entry_id,),
+                decrypt_column=1
+            )
             
-            # Hole die Anzahl betroffener Zeilen
-            affected_rows = cursor.rowcount
-            
-            conn.commit()
-            conn.close()
-            
-            return affected_rows
+            if result:
+                category, data, metadata = result[0]
+                return {
+                    "id": entry_id,
+                    "category": category,
+                    "data": json.loads(data),
+                    "metadata": json.loads(metadata)
+                }
+            else:
+                logger.warning(f"Wissenseintrag mit ID {entry_id} nicht gefunden.")
+                return None
         except Exception as e:
-            logger.error(f"Fehler bei der Datenbankabfrage: {str(e)}", exc_info=True)
-            raise
+            logger.error(f"Fehler beim Abrufen von Wissen: {str(e)}", exc_info=True)
+            return None
     
-    def select(self, sql: str, params: tuple = (), decrypt_column: Optional[int] = 2) -> List[Dict[str, Any]]:
+    def query(self, category: str, filters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
         """
-        Führt eine SELECT-Abfrage auf der Datenbank aus und entschlüsselt optionale Spalten.
+        Fragt Wissen nach Kategorie und Filtern ab.
         
         Args:
-            sql: Die SQL-Abfrage
-            params: Optionale Parameter für die Abfrage
-            decrypt_column: Die Spalte, die entschlüsselt werden soll (None für keine Entschlüsselung)
+            category: Die Kategorie des Wissens
+            filters: Optionale Filter
             
         Returns:
-            List[Dict[str, Any]]: Die Ergebnisse als Dictionary mit Spaltennamen
+            List[Dict[str, Any]]: Die gefundenen Wissenseinträge
         """
         try:
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
-            cursor.execute(sql, params)
+            # Erstelle die WHERE-Klausel
+            where_clauses = ["category = ?"]
+            params = [category]
             
-            # Hole die Spaltennamen
-            column_names = [description[0] for description in cursor.description]
+            if filters:
+                for key, value in filters.items():
+                    where_clauses.append(f"json_extract(metadata, '$.{key}') = ?")
+                    params.append(str(value))
             
-            results = []
-            for row in cursor.fetchall():
-                result = {}
-                
-                # Verarbeite jede Spalte
-                for i, value in enumerate(row):
-                    column_name = column_names[i]
-                    
-                    # Soll die Spalte entschlüsselt werden?
-                    if i == decrypt_column:
-                        try:
-                            # Entschlüssle die Daten
-                            decrypted_data = self._decrypt_data(value)
-                            result[column_name] = decrypted_data
-                        except Exception as e:
-                            logger.error(f"Fehler bei der Datenentschlüsselung für Spalte {column_name}: {str(e)}", exc_info=True)
-                            result[column_name] = None
-                    else:
-                        # Verwende die Rohdaten
-                        result[column_name] = value
-                
-                results.append(result)
+            where_clause = " AND ".join(where_clauses)
+            query = f"SELECT id, category, data, metadata FROM knowledge WHERE {where_clause}"
             
-            conn.close()
-            return results
+            results = self.select(query, tuple(params), decrypt_column=2)
+            
+            # Formatieren der Ergebnisse
+            formatted_results = []
+            for row in results:
+                entry_id, category, data, metadata = row
+                formatted_results.append({
+                    "id": entry_id,
+                    "category": category,
+                    "data": json.loads(data),
+                    "metadata": json.loads(metadata)
+                })
+            
+            return formatted_results
         except Exception as e:
-            logger.error(f"Fehler bei der Datenbankabfrage: {str(e)}", exc_info=True)
-            raise
+            logger.error(f"Fehler bei der Wissensabfrage: {str(e)}", exc_info=True)
+            return []
     
-    def get_statistics(self) -> Dict[str, Any]:
+    def update(self, entry_id: int, data: Optional[Dict[str, Any]] = None, 
+               metadata: Optional[Dict[str, Any]] = None) -> bool:
         """
-        Gibt Statistiken über die Wissensdatenbank zurück.
+        Aktualisiert einen Wissenseintrag.
         
+        Args:
+            entry_id: Die ID des Eintrags
+            data: Optionale neue Daten
+            metadata: Optionale neue Metadaten
+            
         Returns:
-            Dict[str, Any]: Statistikinformationen
+            bool: True, wenn erfolgreich, sonst False
         """
         try:
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
-            
-            # Hole die Gesamtanzahl der Einträge
-            cursor.execute("SELECT COUNT(*) FROM knowledge")
-            total_entries = cursor.fetchone()[0]
-            
-            # Hole Einträge nach Kategorie
-            cursor.execute("SELECT category, COUNT(*) FROM knowledge GROUP BY category")
-            category_counts = {row[0]: row[1] for row in cursor.fetchall()}
-            
-            # Hole den neuesten Eintrag
-            cursor.execute("SELECT timestamp FROM knowledge ORDER BY timestamp DESC LIMIT 1")
-            latest_entry = cursor.fetchone()
-            
-            conn.close()
-            
-            return {
-                "total_entries": total_entries,
-                "category_counts": category_counts,
-                "latest_entry": latest_entry[0] if latest_entry else None,
-                "encrypted": True
-            }
-        except Exception as e:
-            logger.error(f"Fehler bei der Statistikabfrage: {str(e)}", exc_info=True)
-            return {
-                "total_entries": 0,
-                "category_counts": {},
-                "latest_entry": None,
-                "encrypted": True
-            }
-    
-    def is_integrity_valid(self) -> bool:
-        """
-        Prüft die Integrität der Datenbank.
-        
-        Returns:
-            bool: True, wenn die Integrität gewährleistet ist
-        """
-        try:
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
-            
-            # Prüfe, ob die Tabellen existieren
-            cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
-            tables = [row[0] for row in cursor.fetchall()]
-            
-            required_tables = ['knowledge', 'system_stats', 'learning_history', 'users']
-            if not all(table in tables for table in required_tables):
-                logger.error("Datenbankstruktur ist beschädigt - fehlende Tabellen")
+            # Hole den aktuellen Eintrag
+            current = self.get(entry_id)
+            if not current:
                 return False
             
-            # Prüfe die Verschlüsselung
-            cursor.execute("SELECT encrypted_data FROM knowledge LIMIT 1")
-            if cursor.fetchone():
-                # Versuche, einen Datensatz zu entschlüsseln
-                try:
-                    self._decrypt_data(cursor.fetchone()[0])
-                except Exception as e:
-                    logger.error(f"Verschlüsselungsintegrität fehlgeschlagen: {str(e)}")
-                    return False
+            # Vorbereiten der neuen Daten
+            new_data = data if data is not None else current["data"]
+            new_metadata = metadata if metadata is not None else current["metadata"]
+            new_metadata["updated_at"] = time.time()
             
-            conn.close()
+            # Verschlüssele die neuen Daten, falls erforderlich
+            encrypted_data = json.dumps(new_data)
+            if self.fernet:
+                encrypted_data = self.fernet.encrypt(encrypted_data.encode()).decode()
+            
+            # Aktualisiere den Eintrag
+            self.execute(
+                "UPDATE knowledge SET data = ?, metadata = ?, updated_at = ? WHERE id = ?",
+                (encrypted_data, json.dumps(new_metadata), time.time(), entry_id)
+            )
+            
             return True
         except Exception as e:
-            logger.error(f"Integritätsprüfung fehlgeschlagen: {str(e)}", exc_info=True)
+            logger.error(f"Fehler bei der Aktualisierung von Wissen: {str(e)}", exc_info=True)
             return False
     
-    def _encrypt_data(self, data: Dict[str, Any]) -> bytes:
+    def delete(self, entry_id: int) -> bool:
         """
-        Verschlüsselt Daten.
+        Löscht einen Wissenseintrag.
         
         Args:
-            data: Die zu verschlüsselnden Daten
+            entry_id: Die ID des Eintrags
             
         Returns:
-            bytes: Die verschlüsselten Daten
+            bool: True, wenn erfolgreich, sonst False
         """
         try:
-            # Serialisiere die Daten als JSON
-            data_json = json.dumps(data).encode('utf-8')
-            
-            # Verschlüssele die Daten
-            encrypted_data = self.cipher.encrypt(data_json)
-            
-            return encrypted_data
+            self.execute(
+                "DELETE FROM knowledge WHERE id = ?",
+                (entry_id,)
+            )
+            return True
         except Exception as e:
-            logger.error(f"Fehler bei der Datenverschlüsselung: {str(e)}", exc_info=True)
-            raise
+            logger.error(f"Fehler beim Löschen von Wissen: {str(e)}", exc_info=True)
+            return False
     
-    def _decrypt_data(self, encrypted_data: bytes) -> Dict[str, Any]:
+    def list_categories(self) -> List[str]:
         """
-        Entschlüsselt Daten.
+        Listet alle Kategorien auf.
         
-        Args:
-            encrypted_data: Die zu entschlüsselnden Daten
-            
         Returns:
-            Dict[str, Any]: Die entschlüsselten Daten
+            List[str]: Die Kategorien
         """
         try:
-            # Sicherstellen, dass encrypted_data Bytes sind
-            if isinstance(encrypted_data, str):
-                encrypted_data = encrypted_data.encode('utf-8')
-            
-            # Entschlüssle die Daten
-            decrypted_data = self.cipher.decrypt(encrypted_data)
-            
-            # Deserialisiere die JSON-Daten
-            data = json.loads(decrypted_data.decode('utf-8'))
-            
-            return data
+            results = self.select("SELECT DISTINCT category FROM knowledge")
+            return [row[0] for row in results]
         except Exception as e:
-            logger.error(f"Fehler bei der Datenentschlüsselung: {str(e)}", exc_info=True)
-            raise
+            logger.error(f"Fehler beim Auflisten der Kategorien: {str(e)}", exc_info=True)
+            return []

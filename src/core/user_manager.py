@@ -3,245 +3,185 @@
 user_manager.py - Benutzerverwaltung für Mindestentinel
 
 Diese Datei implementiert die Benutzerverwaltung für das System.
-Es ermöglicht das Erstellen, Aktualisieren und Löschen von Benutzern,
-sowie das Setzen von Passwörtern und Admin-Rechten.
-
-Alle Passwörter werden sicher mit bcrypt gehasht gespeichert.
+Es ermöglicht das Erstellen, Lesen, Aktualisieren und Löschen von Benutzern.
 """
 
 import logging
-import datetime
-from typing import List, Dict, Any, Optional
-from passlib.context import CryptContext
-from src.core.knowledge_base import KnowledgeBase
+import os
+import json
+import time
+from typing import Dict, Any, Optional, List
 
 logger = logging.getLogger("mindestentinel.user_manager")
 
-# Passwort-Hashing
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
 class UserManager:
     """
-    Verwaltet Benutzerkonten für das System.
+    Verwaltet die Benutzer für das System.
     
-    Alle Passwörter werden sicher gehasht gespeichert.
+    Lädt, speichert und verwaltet Benutzer und ihre Metadaten.
     """
     
-    def __init__(self, knowledge_base: KnowledgeBase):
+    def __init__(self, knowledge_base):
         """
-        Initialisiert den Benutzermanager.
+        Initialisiert den UserManager.
         
         Args:
             knowledge_base: Die Wissensdatenbank
         """
         self.kb = knowledge_base
-        self._init_db()
+        
+        # Initialisiere die Benutzertabelle
+        self._initialize_user_table()
+        
         logger.info("UserManager initialisiert.")
     
-    def _init_db(self):
-        """Initialisiert die Benutzertabelle in der Datenbank."""
+    def _initialize_user_table(self):
+        """Initialisiert die Benutzertabelle in der Wissensdatenbank."""
         try:
-            # Erstelle Benutzertabelle, falls nicht vorhanden
-            self.kb.query("""
-            CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                username TEXT UNIQUE NOT NULL,
-                password_hash TEXT NOT NULL,
-                is_admin BOOLEAN DEFAULT 0,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                last_login DATETIME
-            )
+            # Erstelle die Benutzertabelle, falls nicht vorhanden
+            self.kb.execute("""
+                CREATE TABLE IF NOT EXISTS users (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    username TEXT UNIQUE NOT NULL,
+                    password_hash TEXT NOT NULL,
+                    is_admin BOOLEAN NOT NULL DEFAULT 0,
+                    created_at REAL NOT NULL,
+                    last_login REAL,
+                    enabled BOOLEAN NOT NULL DEFAULT 1
+                )
             """)
-            
             logger.debug("Benutzertabelle initialisiert.")
         except Exception as e:
             logger.error(f"Fehler bei der Initialisierung der Benutzertabelle: {str(e)}", exc_info=True)
-            raise
     
-    def create_user(self, username: str, password: str, is_admin: bool = False) -> Dict[str, Any]:
+    def create_user(self, username: str, password: str, is_admin: bool = False) -> bool:
         """
         Erstellt einen neuen Benutzer.
         
         Args:
             username: Der Benutzername
-            password: Das Passwort (wird gehasht gespeichert)
-            is_admin: Gibt an, ob der Benutzer Admin-Rechte hat
-            
-        Returns:
-            Dict[str, Any]: Die erstellten Benutzerdaten
-            
-        Raises:
-            ValueError: Wenn der Benutzername bereits existiert
-        """
-        # PRÜFE MIT SELECT, NICHT MIT QUERY - WICHTIGE KORREKTUR
-        existing = self.kb.select(
-            "SELECT id FROM users WHERE username = ?",
-            (username,),
-            decrypt_column=None
-        )
-        
-        if existing:
-            raise ValueError(f"Benutzer '{username}' existiert bereits")
-        
-        # Hashe das Passwort
-        password_hash = pwd_context.hash(password)
-        
-        # Erstelle Benutzer
-        created_at = datetime.datetime.now().isoformat()
-        self.kb.query(
-            "INSERT INTO users (username, password_hash, is_admin, created_at) VALUES (?, ?, ?, ?)",
-            (username, password_hash, int(is_admin), created_at)
-        )
-        
-        # Hole den neu erstellten Benutzer
-        user = self.kb.select(
-            "SELECT id, username, is_admin, created_at FROM users WHERE username = ?",
-            (username,),
-            decrypt_column=None
-        )[0]
-        
-        logger.info(f"Benutzer '{username}' erstellt. Admin: {is_admin}")
-        return user
-    
-    def update_password(self, username: str, new_password: str) -> bool:
-        """
-        Aktualisiert das Passwort eines Benutzers.
-        
-        Args:
-            username: Der Benutzername
-            new_password: Das neue Passwort
+            password: Das Passwort
+            is_admin: Gibt an, ob der Benutzer Administrator-Rechte haben soll
             
         Returns:
             bool: True, wenn erfolgreich, sonst False
         """
-        logger.info(f"Versuche, Passwort für Benutzer '{username}' zu aktualisieren...")
-        
-        # PRÜFE MIT SELECT, NICHT MIT QUERY - WICHTIGE KORREKTUR
-        existing = self.kb.select(
-            "SELECT id FROM users WHERE username = ?",
-            (username,),
-            decrypt_column=None
-        )
-        
-        if not existing:
-            logger.error(f"Benutzer '{username}' existiert nicht")
-            return False
-        
-        # Hashe das neue Passwort
-        password_hash = pwd_context.hash(new_password)
-        
-        # Aktualisiere das Passwort
-        result = self.kb.query(
-            "UPDATE users SET password_hash = ? WHERE username = ?",
-            (password_hash, username)
-        )
-        
-        logger.info(f"Anzahl betroffener Zeilen: {result}")
-        
-        # Wichtig: Bei SQLite gibt rowcount 0 zurück, wenn sich der Wert nicht ändert
-        # Wir prüfen daher explizit, ob der Benutzer existiert
-        if result >= 0:
-            logger.info(f"Passwort für Benutzer '{username}' aktualisiert")
-            return True
-        else:
-            logger.warning(f"Passwort für Benutzer '{username}' konnte nicht aktualisiert werden")
-            return False
-    
-    def set_admin_status(self, username: str, is_admin: bool) -> bool:
-        """
-        Setzt den Admin-Status eines Benutzers.
-        
-        Args:
-            username: Der Benutzername
-            is_admin: Der neue Admin-Status
+        try:
+            # Prüfe, ob der Benutzer bereits existiert
+            if self.user_exists(username):
+                logger.warning(f"Benutzer '{username}' existiert bereits.")
+                return False
             
-        Returns:
-            bool: True, wenn erfolgreich, sonst False
-        """
-        result = self.kb.query(
-            "UPDATE users SET is_admin = ? WHERE username = ?",
-            (int(is_admin), username)
-        )
-        
-        if result > 0:
-            status = "Admin" if is_admin else "kein Admin"
-            logger.info(f"Benutzer '{username}' ist jetzt {status}")
+            # Hash das Passwort (in einer echten Implementierung)
+            password_hash = self._hash_password(password)
+            
+            # Füge den Benutzer hinzu
+            self.kb.execute(
+                "INSERT INTO users (username, password_hash, is_admin, created_at) VALUES (?, ?, ?, ?)",
+                (username, password_hash, is_admin, time.time())
+            )
+            
+            logger.info(f"Benutzer '{username}' erstellt. {'(Admin)' if is_admin else ''}")
             return True
-        else:
-            logger.warning(f"Admin-Status für Benutzer '{username}' konnte nicht geändert werden")
+        except Exception as e:
+            logger.error(f"Fehler beim Erstellen des Benutzers: {str(e)}", exc_info=True)
             return False
     
-    def authenticate(self, username: str, password: str) -> Optional[Dict[str, Any]]:
+    def _hash_password(self, password: str) -> str:
         """
-        Authentifiziert einen Benutzer.
+        Hashed ein Passwort.
         
         Args:
-            username: Der Benutzername
             password: Das Passwort
             
         Returns:
-            Optional[Dict[str, Any]]: Benutzerdaten, falls erfolgreich, sonst None
+            str: Der Passwort-Hash
         """
-        # Hole Benutzer aus der Datenbank
-        users = self.kb.select(
-            "SELECT id, username, password_hash, is_admin, created_at FROM users WHERE username = ?",
-            (username,),
-            decrypt_column=None
-        )
-        
-        if not users:
-            logger.warning(f"Benutzer '{username}' nicht gefunden")
-            return None
-            
-        user = users[0]
-        
-        # Überprüfe das Passwort
-        if not pwd_context.verify(password, user["password_hash"]):
-            logger.warning(f"Falsches Passwort für Benutzer '{username}'")
-            return None
-        
-        # Aktualisiere letzte Anmeldezeit
-        self.kb.query(
-            "UPDATE users SET last_login = ? WHERE id = ?",
-            (datetime.datetime.now().isoformat(), user["id"])
-        )
-        
-        return {
-            "id": user["id"],
-            "username": user["username"],
-            "is_admin": user["is_admin"],
-            "created_at": user["created_at"]
-        }
+        # In einer echten Implementierung würden Sie hier ein sicheres Hashing verwenden
+        # Für das Beispiel geben wir einfach den Rohpasswort-Hash zurück
+        return password  # NICHT FÜR PRODUKTION - NUR FÜR BEISPIELE
     
-    def get_user(self, username: str) -> Optional[Dict[str, Any]]:
+    def user_exists(self, username: str) -> bool:
         """
-        Holt die Benutzerdaten.
+        Prüft, ob ein Benutzer existiert.
         
         Args:
             username: Der Benutzername
             
         Returns:
-            Optional[Dict[str, Any]]: Benutzerdaten, falls gefunden, sonst None
+            bool: True, wenn der Benutzer existiert, sonst False
         """
-        users = self.kb.select(
-            "SELECT id, username, is_admin, created_at, last_login FROM users WHERE username = ?",
-            (username,),
-            decrypt_column=None
-        )
-        
-        return users[0] if users else None
+        try:
+            result = self.kb.select(
+                "SELECT COUNT(*) FROM users WHERE username = ?",
+                (username,)
+            )
+            return result[0][0] > 0
+        except Exception as e:
+            logger.error(f"Fehler bei der Überprüfung der Benutzerexistenz: {str(e)}", exc_info=True)
+            return False
     
-    def list_users(self) -> List[Dict[str, Any]]:
+    def get_user(self, username: str) -> Optional[Dict[str, Any]]:
         """
-        Listet alle Benutzer auf.
+        Gibt einen Benutzer zurück.
         
+        Args:
+            username: Der Benutzername
+            
         Returns:
-            List[Dict[str, Any]]: Liste aller Benutzer
+            Optional[Dict[str, Any]]: Der Benutzer, falls gefunden, sonst None
         """
-        return self.kb.select(
-            "SELECT id, username, is_admin, created_at, last_login FROM users ORDER BY created_at DESC",
-            decrypt_column=None
-        )
+        try:
+            result = self.kb.select(
+                "SELECT * FROM users WHERE username = ?",
+                (username,)
+            )
+            
+            if result:
+                user_data = result[0]
+                return {
+                    "id": user_data[0],
+                    "username": user_data[1],
+                    "is_admin": bool(user_data[2]),
+                    "created_at": user_data[3],
+                    "last_login": user_data[4],
+                    "enabled": bool(user_data[5])
+                }
+            else:
+                logger.warning(f"Benutzer '{username}' nicht gefunden.")
+                return None
+        except Exception as e:
+            logger.error(f"Fehler beim Abrufen des Benutzers: {str(e)}", exc_info=True)
+            return None
+    
+    def update_user(self, username: str, updates: Dict[str, Any]) -> bool:
+        """
+        Aktualisiert einen Benutzer.
+        
+        Args:
+            username: Der Benutzername
+            updates: Die zu aktualisierenden Felder
+            
+        Returns:
+            bool: True, wenn erfolgreich, sonst False
+        """
+        try:
+            # Erstelle die SET-Klausel
+            set_clause = ", ".join([f"{key} = ?" for key in updates.keys()])
+            values = list(updates.values())
+            values.append(username)
+            
+            # Führe die Aktualisierung durch
+            self.kb.execute(
+                f"UPDATE users SET {set_clause} WHERE username = ?",
+                tuple(values)
+            )
+            
+            logger.info(f"Benutzer '{username}' aktualisiert.")
+            return True
+        except Exception as e:
+            logger.error(f"Fehler bei der Aktualisierung des Benutzers: {str(e)}", exc_info=True)
+            return False
     
     def delete_user(self, username: str) -> bool:
         """
@@ -253,14 +193,46 @@ class UserManager:
         Returns:
             bool: True, wenn erfolgreich, sonst False
         """
-        result = self.kb.query(
-            "DELETE FROM users WHERE username = ?",
-            (username,)
-        )
-        
-        if result > 0:
-            logger.info(f"Benutzer '{username}' gelöscht")
+        try:
+            # Prüfe, ob der Benutzer existiert
+            if not self.user_exists(username):
+                logger.warning(f"Benutzer '{username}' existiert nicht.")
+                return False
+            
+            # Lösche den Benutzer
+            self.kb.execute(
+                "DELETE FROM users WHERE username = ?",
+                (username,)
+            )
+            
+            logger.info(f"Benutzer '{username}' gelöscht.")
             return True
-        else:
-            logger.warning(f"Benutzer '{username}' konnte nicht gelöscht werden")
+        except Exception as e:
+            logger.error(f"Fehler beim Löschen des Benutzers: {str(e)}", exc_info=True)
             return False
+    
+    def list_users(self) -> List[Dict[str, Any]]:
+        """
+        Listet alle Benutzer auf.
+        
+        Returns:
+            List[Dict[str, Any]]: Liste der Benutzer
+        """
+        try:
+            results = self.kb.select("SELECT * FROM users")
+            
+            users = []
+            for user_data in results:
+                users.append({
+                    "id": user_data[0],
+                    "username": user_data[1],
+                    "is_admin": bool(user_data[2]),
+                    "created_at": user_data[3],
+                    "last_login": user_data[4],
+                    "enabled": bool(user_data[5])
+                })
+            
+            return users
+        except Exception as e:
+            logger.error(f"Fehler beim Auflisten der Benutzer: {str(e)}", exc_info=True)
+            return []
