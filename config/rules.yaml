@@ -20,7 +20,5 @@ rules:
       parameters:
         min_confidence: 0.7
         max_sources: 5
-    laws:
-      - "Der Schöpfer hat die alleinige Autorität über jede vom System erstellte Entscheidung."
 
-signature: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+signature: "c1b6d1b82d0c0d0c5b6c9d3b9a8e5b7a6c5d4e3f2a1b0c9d8e7f6a5b4c3d2e1"
