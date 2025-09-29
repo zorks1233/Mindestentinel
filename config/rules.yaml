@@ -1,24 +1,27 @@
 rules:
-  - id: "learning_goal_safety_001"
-    name: "Sicherheitsprüfung für Lernziele"
-    description: "Stellt sicher, dass Lernziele sicher sind"
-    condition:
-      category: "learning_goals"
-    action:
-      type: "safety_check"
-      parameters:
-        max_complexity: 5
-        required_resources: ["cpu", "memory"]
-        
-  - id: "knowledge_integrity_001"
-    name: "Integritätsprüfung für Wissen"
-    description: "Überprüft die Integrität von Wissensbeispielen"
-    condition:
-      category: "knowledge"
-    action:
-      type: "integrity_check"
-      parameters:
-        min_confidence: 0.7
-        max_sources: 5
-
-signature: "c1b6d1b82d0c0d0c5b6c9d3b9a8e5b7a6c5d4e3f2a1b0c9d8e7f6a5b4c3d2e1"
+- id: learning_goal_safety_001
+  name: "Sicherheitspr\xC3\xBCfung f\xC3\xBCr Lernziele"
+  description: Stellt sicher, dass Lernziele sicher sind
+  condition:
+    category: learning_goals
+  action:
+    type: safety_check
+    parameters:
+      max_complexity: 5
+      required_resources:
+      - cpu
+      - memory
+- id: knowledge_integrity_001
+  name: "Integrit\xC3\xA4tspr\xC3\xBCfung f\xC3\xBCr Wissen"
+  description: "\xC3\u0153berpr\xC3\xBCft die Integrit\xC3\xA4t von Wissensbeispielen"
+  condition:
+    category: knowledge
+  action:
+    type: integrity_check
+    parameters:
+      min_confidence: 0.7
+      max_sources: 5
+  laws:
+  - "Der Sch\xC3\xB6pfer hat die alleinige Autorit\xC3\xA4t \xC3\xBCber jede vom System\
+    \ erstellte Entscheidung."
+signature: b9dcaf2aafafee0b94c0ed54703f09c146cb6d8a0015e95eff70eef2bf3fff17
