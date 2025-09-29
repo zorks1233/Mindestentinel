@@ -1,0 +1,175 @@
+2025-09-24 10:59:00,765 [INFO] root: Logging konfiguriert. Logs werden gespeichert in: C:\Users\bkrie\Desktop\Mindestentinel\Mindestentinel - Alpha-Projekt build0015.2A\logs\mindestentinel_20250924.log
+2025-09-24 10:59:45,124 [INFO] root: Logging konfiguriert. Logs werden gespeichert in: C:\Users\bkrie\Desktop\Mindestentinel\Mindestentinel - Alpha-Projekt build0015.2A\logs\mindestentinel_20250924.log
+2025-09-24 10:59:45,125 [INFO] mindestentinel.main: Debug-Modus aktiviert
+2025-09-24 10:59:45,126 [INFO] mindestentinel.main: Initialisiere ModelManager...
+2025-09-24 10:59:45,853 [INFO] mindestentinel.model_manager: Modell 'tiny-llama' erfolgreich geladen.
+2025-09-24 10:59:45,861 [INFO] mindestentinel.model_manager: Geladen: 1 Modelle aus model_registry.json
+2025-09-24 10:59:45,861 [INFO] mindestentinel.model_manager: ModelManager initialisiert mit 1 Modellen aus data/models.
+2025-09-24 10:59:45,861 [INFO] mindestentinel.main: Initialisiere PluginManager...
+2025-09-24 10:59:45,862 [INFO] mindestentinel.main: Initialisiere RuleEngine...
+2025-09-24 10:59:45,872 [INFO] mindestentinel.rule_engine: 2 Regeln geladen aus config\rules.yaml
+2025-09-24 10:59:45,879 [ERROR] mindestentinel.rule_engine: Regel-Signatur ungültig
+2025-09-24 10:59:45,880 [INFO] mindestentinel.rule_engine: Starte Regeldatei-Überwachung (Intervall: 30 Sekunden)...
+2025-09-24 10:59:45,880 [INFO] mindestentinel.rule_engine: RuleEngine initialisiert mit 2 Regeln.
+2025-09-24 10:59:45,880 [INFO] mindestentinel.main: Initialisiere AIBrain...
+2025-09-24 10:59:45,881 [INFO] mindestentinel.ai_engine: AIBrain initialisiert.
+2025-09-24 10:59:45,881 [DEBUG] mindestentinel.ai_engine: ModelManager injiziert.
+2025-09-24 10:59:45,881 [INFO] mindestentinel.main: knowledge_base nicht in AIBrain gefunden - initialisiere neu
+2025-09-24 10:59:45,888 [DEBUG] mindestentinel.knowledge_base: Verschlüsselungssystem initialisiert.
+2025-09-24 10:59:45,891 [INFO] mindestentinel.knowledge_base: Datenbankstruktur initialisiert.
+2025-09-24 10:59:45,891 [INFO] mindestentinel.knowledge_base: Wissensdatenbank initialisiert: data/knowledge/knowledge.db
+2025-09-24 10:59:45,891 [INFO] mindestentinel.main: Initialisiere UserManager...
+2025-09-24 10:59:45,892 [DEBUG] mindestentinel.user_manager: Benutzertabelle initialisiert.
+2025-09-24 10:59:45,892 [INFO] mindestentinel.user_manager: UserManager initialisiert.
+2025-09-24 10:59:45,893 [INFO] mindestentinel.main: Standard-Admin-Benutzer 'admin' existiert bereits
+2025-09-24 10:59:45,893 [INFO] mindestentinel.main: model_orchestrator nicht in AIBrain gefunden - initialisiere neu
+2025-09-24 10:59:45,894 [INFO] src.core.multi_model_orchestrator: MultiModelOrchestrator initialisiert.
+2025-09-24 10:59:45,894 [DEBUG] src.core.multi_model_orchestrator: ModelManager injiziert
+2025-09-24 10:59:45,894 [INFO] mindestentinel.main: rule_engine nicht in AIBrain gefunden - verwende vorinitialisierte Instanz
+2025-09-24 10:59:45,894 [INFO] mindestentinel.main: protection_module nicht in AIBrain gefunden - initialisiere neu mit rule_engine
+2025-09-24 10:59:45,894 [INFO] mindestentinel.main: system_monitor nicht in AIBrain gefunden - initialisiere neu
+2025-09-24 10:59:45,894 [INFO] src.core.system_monitor: SystemMonitor initialisiert.
+2025-09-24 10:59:45,894 [INFO] mindestentinel.main: Initialisiere ModelCloner...
+2025-09-24 10:59:45,895 [INFO] mindestentinel.model_cloner: ModelCloner initialisiert. Backup-Verzeichnis: data/models/backups
+2025-09-24 10:59:45,895 [INFO] mindestentinel.main: Initialisiere KnowledgeTransfer...
+2025-09-24 10:59:45,895 [INFO] mindestentinel.knowledge_transfer: KnowledgeTransfer initialisiert.
+2025-09-24 10:59:45,895 [INFO] mindestentinel.main: Registriere 1 Modelle als Lehrer-Modelle: ['tiny-llama']
+2025-09-24 10:59:45,895 [INFO] src.core.multi_model_orchestrator: Lehrer-Modell registriert: tiny-llama
+2025-09-24 10:59:45,895 [INFO] mindestentinel.main: Initialisiere den autonomen Lernzyklus...
+2025-09-24 10:59:45,895 [INFO] mindestentinel.autonomous_loop: AutonomousLoop initialisiert. Warte auf Aktivierung...
+2025-09-24 10:59:45,895 [INFO] mindestentinel.main: Autonomer Lernzyklus erfolgreich initialisiert
+2025-09-24 10:59:46,335 [INFO] mindestentinel.main: Plugins auto-loaded: 5
+2025-09-24 10:59:46,336 [INFO] mindestentinel.ai_engine: AIBrain gestartet.
+2025-09-24 10:59:46,336 [INFO] mindestentinel.main: Aktiviere autonomen Lernzyklus...
+2025-09-24 10:59:46,336 [INFO] mindestentinel.autonomous_loop: AutonomousLoop aktiviert. Beginne mit Lernzyklen...
+2025-09-24 10:59:46,337 [INFO] mindestentinel.autonomous_loop: Beginne Hintergrundloop für autonomen Lernzyklus.
+2025-09-24 10:59:46,339 [INFO] mindestentinel.main: Starting REST API on 0.0.0.0:8000
+2025-09-24 10:59:46,358 [DEBUG] asyncio: Using proactor: IocpProactor
+2025-09-24 11:03:27,088 [INFO] mindestentinel.main: Received KeyboardInterrupt. Shutting down.
+2025-09-24 11:03:27,088 [INFO] mindestentinel.main: Deaktiviere autonomen Lernzyklus...
+2025-09-24 11:03:27,088 [INFO] mindestentinel.autonomous_loop: AutonomousLoop deaktiviert.
+2025-09-24 11:03:32,089 [INFO] mindestentinel.ai_engine: AIBrain gestoppt.
+2025-09-24 11:03:32,090 [INFO] mindestentinel.main: System shutdown complete.
+2025-09-24 11:03:54,503 [INFO] root: Logging konfiguriert. Logs werden gespeichert in: C:\Users\bkrie\Desktop\Mindestentinel\Mindestentinel - Alpha-Projekt build0015.2A\logs\mindestentinel_20250924.log
+2025-09-24 11:03:54,504 [INFO] mindestentinel.main: Debug-Modus aktiviert
+2025-09-24 11:03:54,504 [INFO] mindestentinel.main: Initialisiere ModelManager...
+2025-09-24 11:03:54,506 [ERROR] mindestentinel.model_manager: Fehler beim Laden des Modells 'backups': Unrecognized model in data/models\backups. Should have a `model_type` key in its config.json, or contain one of the following strings in its name: aimv2, aimv2_vision_model, albert, align, altclip, apertus, arcee, aria, aria_text, audio-spectrogram-transformer, autoformer, aya_vision, bamba, bark, bart, beit, bert, bert-generation, big_bird, bigbird_pegasus, biogpt, bit, bitnet, blenderbot, blenderbot-small, blip, blip-2, blip_2_qformer, bloom, bridgetower, bros, camembert, canine, chameleon, chinese_clip, chinese_clip_vision_model, clap, clip, clip_text_model, clip_vision_model, clipseg, clvp, code_llama, codegen, cohere, cohere2, cohere2_vision, colpali, colqwen2, conditional_detr, convbert, convnext, convnextv2, cpmant, csm, ctrl, cvt, d_fine, dab-detr, dac, data2vec-audio, data2vec-text, data2vec-vision, dbrx, deberta, deberta-v2, decision_transformer, deepseek_v2, deepseek_v3, deepseek_vl, deepseek_vl_hybrid, deformable_detr, deit, depth_anything, depth_pro, deta, detr, dia, diffllama, dinat, dinov2, dinov2_with_registers, dinov3_convnext, dinov3_vit, distilbert, doge, donut-swin, dots1, dpr, dpt, efficientformer, efficientloftr, efficientnet, electra, emu3, encodec, encoder-decoder, eomt, ernie, ernie4_5, ernie4_5_moe, ernie_m, esm, evolla, exaone4, falcon, falcon_h1, falcon_mamba, fastspeech2_conformer, fastspeech2_conformer_with_hifigan, flaubert, flava, florence2, fnet, focalnet, fsmt, funnel, fuyu, gemma, gemma2, gemma3, gemma3_text, gemma3n, gemma3n_audio, gemma3n_text, gemma3n_vision, git, glm, glm4, glm4_moe, glm4v, glm4v_moe, glm4v_moe_text, glm4v_text, glpn, got_ocr2, gpt-sw3, gpt2, gpt_bigcode, gpt_neo, gpt_neox, gpt_neox_japanese, gpt_oss, gptj, gptsan-japanese, granite, granite_speech, granitemoe, granitemoehybrid, granitemoeshared, granitevision, graphormer, grounding-dino, groupvit, helium, hgnet_v2, hiera, hubert, hunyuan_v1_dense, hunyuan_v1_moe, ibert, idefics, idefics2, idefics3, idefics3_vision, ijepa, imagegpt, informer, instructblip, instructblipvideo, internvl, internvl_vision, jamba, janus, jetmoe, jukebox, kosmos-2, kosmos-2.5, kyutai_speech_to_text, layoutlm, layoutlmv2, layoutlmv3, led, levit, lfm2, lightglue, lilt, llama, llama4, llama4_text, llava, llava_next, llava_next_video, llava_onevision, longformer, longt5, luke, lxmert, m2m_100, mamba, mamba2, marian, markuplm, mask2former, maskformer, maskformer-swin, mbart, mctct, mega, megatron-bert, metaclip_2, mgp-str, mimi, minimax, mistral, mistral3, mixtral, mlcd, mllama, mm-grounding-dino, mobilebert, mobilenet_v1, mobilenet_v2, mobilevit, mobilevitv2, modernbert, modernbert-decoder, moonshine, moshi, mpnet, mpt, mra, mt5, musicgen, musicgen_melody, mvp, nat, nemotron, nezha, nllb-moe, nougat, nystromformer, olmo, olmo2, olmoe, omdet-turbo, oneformer, open-llama, openai-gpt, opt, ovis2, owlv2, owlvit, paligemma, patchtsmixer, patchtst, pegasus, pegasus_x, perceiver, perception_encoder, perception_lm, persimmon, phi, phi3, phi4_multimodal, phimoe, pix2struct, pixtral, plbart, poolformer, pop2piano, prompt_depth_anything, prophetnet, pvt, pvt_v2, qdqbert, qwen2, qwen2_5_omni, qwen2_5_vl, qwen2_5_vl_text, qwen2_audio, qwen2_audio_encoder, qwen2_moe, qwen2_vl, qwen2_vl_text, qwen3, qwen3_moe, rag, realm, recurrent_gemma, reformer, regnet, rembert, resnet, retribert, roberta, roberta-prelayernorm, roc_bert, roformer, rt_detr, rt_detr_resnet, rt_detr_v2, rwkv, sam, sam2, sam2_hiera_det_model, sam2_video, sam2_vision_model, sam_hq, sam_hq_vision_model, sam_vision_model, seamless_m4t, seamless_m4t_v2, seed_oss, segformer, seggpt, sew, sew-d, shieldgemma2, siglip, siglip2, siglip_vision_model, smollm3, smolvlm, smolvlm_vision, speech-encoder-decoder, speech_to_text, speech_to_text_2, speecht5, splinter, squeezebert, stablelm, starcoder2, superglue, superpoint, swiftformer, swin, swin2sr, swinv2, switch_transformers, t5, t5gemma, table-transformer, tapas, textnet, time_series_transformer, timesfm, timesformer, timm_backbone, timm_wrapper, trajectory_transformer, transfo-xl, trocr, tvlt, tvp, udop, umt5, unispeech, unispeech-sat, univnet, upernet, van, video_llava, videomae, vilt, vipllava, vision-encoder-decoder, vision-text-dual-encoder, visual_bert, vit, vit_hybrid, vit_mae, vit_msn, vitdet, vitmatte, vitpose, vitpose_backbone, vits, vivit, vjepa2, voxtral, voxtral_encoder, wav2vec2, wav2vec2-bert, wav2vec2-conformer, wavlm, whisper, xclip, xcodec, xglm, xlm, xlm-prophetnet, xlm-roberta, xlm-roberta-xl, xlnet, xlstm, xmod, yolos, yoso, zamba, zamba2, zoedepth
+Traceback (most recent call last):
+  File "C:\Users\bkrie\Desktop\Mindestentinel\Mindestentinel - Alpha-Projekt build0015.2A\src\core\model_manager.py", line 62, in load_models
+    model = AutoModelForCausalLM.from_pretrained(model_path)
+  File "A:\Program Files\Python313\Lib\site-packages\transformers\models\auto\auto_factory.py", line 549, in from_pretrained
+    config, kwargs = AutoConfig.from_pretrained(
+                     ~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        pretrained_model_name_or_path,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<4 lines>...
+        **kwargs,
+        ^^^^^^^^^
+    )
+    ^
+  File "A:\Program Files\Python313\Lib\site-packages\transformers\models\auto\configuration_auto.py", line 1329, in from_pretrained
+    raise ValueError(
+    ...<3 lines>...
+    )
+ValueError: Unrecognized model in data/models\backups. Should have a `model_type` key in its config.json, or contain one of the following strings in its name: aimv2, aimv2_vision_model, albert, align, altclip, apertus, arcee, aria, aria_text, audio-spectrogram-transformer, autoformer, aya_vision, bamba, bark, bart, beit, bert, bert-generation, big_bird, bigbird_pegasus, biogpt, bit, bitnet, blenderbot, blenderbot-small, blip, blip-2, blip_2_qformer, bloom, bridgetower, bros, camembert, canine, chameleon, chinese_clip, chinese_clip_vision_model, clap, clip, clip_text_model, clip_vision_model, clipseg, clvp, code_llama, codegen, cohere, cohere2, cohere2_vision, colpali, colqwen2, conditional_detr, convbert, convnext, convnextv2, cpmant, csm, ctrl, cvt, d_fine, dab-detr, dac, data2vec-audio, data2vec-text, data2vec-vision, dbrx, deberta, deberta-v2, decision_transformer, deepseek_v2, deepseek_v3, deepseek_vl, deepseek_vl_hybrid, deformable_detr, deit, depth_anything, depth_pro, deta, detr, dia, diffllama, dinat, dinov2, dinov2_with_registers, dinov3_convnext, dinov3_vit, distilbert, doge, donut-swin, dots1, dpr, dpt, efficientformer, efficientloftr, efficientnet, electra, emu3, encodec, encoder-decoder, eomt, ernie, ernie4_5, ernie4_5_moe, ernie_m, esm, evolla, exaone4, falcon, falcon_h1, falcon_mamba, fastspeech2_conformer, fastspeech2_conformer_with_hifigan, flaubert, flava, florence2, fnet, focalnet, fsmt, funnel, fuyu, gemma, gemma2, gemma3, gemma3_text, gemma3n, gemma3n_audio, gemma3n_text, gemma3n_vision, git, glm, glm4, glm4_moe, glm4v, glm4v_moe, glm4v_moe_text, glm4v_text, glpn, got_ocr2, gpt-sw3, gpt2, gpt_bigcode, gpt_neo, gpt_neox, gpt_neox_japanese, gpt_oss, gptj, gptsan-japanese, granite, granite_speech, granitemoe, granitemoehybrid, granitemoeshared, granitevision, graphormer, grounding-dino, groupvit, helium, hgnet_v2, hiera, hubert, hunyuan_v1_dense, hunyuan_v1_moe, ibert, idefics, idefics2, idefics3, idefics3_vision, ijepa, imagegpt, informer, instructblip, instructblipvideo, internvl, internvl_vision, jamba, janus, jetmoe, jukebox, kosmos-2, kosmos-2.5, kyutai_speech_to_text, layoutlm, layoutlmv2, layoutlmv3, led, levit, lfm2, lightglue, lilt, llama, llama4, llama4_text, llava, llava_next, llava_next_video, llava_onevision, longformer, longt5, luke, lxmert, m2m_100, mamba, mamba2, marian, markuplm, mask2former, maskformer, maskformer-swin, mbart, mctct, mega, megatron-bert, metaclip_2, mgp-str, mimi, minimax, mistral, mistral3, mixtral, mlcd, mllama, mm-grounding-dino, mobilebert, mobilenet_v1, mobilenet_v2, mobilevit, mobilevitv2, modernbert, modernbert-decoder, moonshine, moshi, mpnet, mpt, mra, mt5, musicgen, musicgen_melody, mvp, nat, nemotron, nezha, nllb-moe, nougat, nystromformer, olmo, olmo2, olmoe, omdet-turbo, oneformer, open-llama, openai-gpt, opt, ovis2, owlv2, owlvit, paligemma, patchtsmixer, patchtst, pegasus, pegasus_x, perceiver, perception_encoder, perception_lm, persimmon, phi, phi3, phi4_multimodal, phimoe, pix2struct, pixtral, plbart, poolformer, pop2piano, prompt_depth_anything, prophetnet, pvt, pvt_v2, qdqbert, qwen2, qwen2_5_omni, qwen2_5_vl, qwen2_5_vl_text, qwen2_audio, qwen2_audio_encoder, qwen2_moe, qwen2_vl, qwen2_vl_text, qwen3, qwen3_moe, rag, realm, recurrent_gemma, reformer, regnet, rembert, resnet, retribert, roberta, roberta-prelayernorm, roc_bert, roformer, rt_detr, rt_detr_resnet, rt_detr_v2, rwkv, sam, sam2, sam2_hiera_det_model, sam2_video, sam2_vision_model, sam_hq, sam_hq_vision_model, sam_vision_model, seamless_m4t, seamless_m4t_v2, seed_oss, segformer, seggpt, sew, sew-d, shieldgemma2, siglip, siglip2, siglip_vision_model, smollm3, smolvlm, smolvlm_vision, speech-encoder-decoder, speech_to_text, speech_to_text_2, speecht5, splinter, squeezebert, stablelm, starcoder2, superglue, superpoint, swiftformer, swin, swin2sr, swinv2, switch_transformers, t5, t5gemma, table-transformer, tapas, textnet, time_series_transformer, timesfm, timesformer, timm_backbone, timm_wrapper, trajectory_transformer, transfo-xl, trocr, tvlt, tvp, udop, umt5, unispeech, unispeech-sat, univnet, upernet, van, video_llava, videomae, vilt, vipllava, vision-encoder-decoder, vision-text-dual-encoder, visual_bert, vit, vit_hybrid, vit_mae, vit_msn, vitdet, vitmatte, vitpose, vitpose_backbone, vits, vivit, vjepa2, voxtral, voxtral_encoder, wav2vec2, wav2vec2-bert, wav2vec2-conformer, wavlm, whisper, xclip, xcodec, xglm, xlm, xlm-prophetnet, xlm-roberta, xlm-roberta-xl, xlnet, xlstm, xmod, yolos, yoso, zamba, zamba2, zoedepth
+2025-09-24 11:03:54,815 [INFO] mindestentinel.model_manager: Modell 'tiny-llama' erfolgreich geladen.
+2025-09-24 11:03:54,816 [INFO] mindestentinel.model_manager: Geladen: 1 Modelle aus model_registry.json
+2025-09-24 11:03:54,816 [INFO] mindestentinel.model_manager: ModelManager initialisiert mit 1 Modellen aus data/models.
+2025-09-24 11:03:54,816 [INFO] mindestentinel.main: Initialisiere PluginManager...
+2025-09-24 11:03:54,816 [INFO] mindestentinel.main: Initialisiere RuleEngine...
+2025-09-24 11:03:54,819 [INFO] mindestentinel.rule_engine: 2 Regeln geladen aus config\rules.yaml
+2025-09-24 11:03:54,824 [ERROR] mindestentinel.rule_engine: Regel-Signatur ungültig
+2025-09-24 11:03:54,824 [INFO] mindestentinel.rule_engine: Starte Regeldatei-Überwachung (Intervall: 30 Sekunden)...
+2025-09-24 11:03:54,825 [INFO] mindestentinel.rule_engine: RuleEngine initialisiert mit 2 Regeln.
+2025-09-24 11:03:54,825 [INFO] mindestentinel.main: Initialisiere AIBrain...
+2025-09-24 11:03:54,826 [INFO] mindestentinel.ai_engine: AIBrain initialisiert.
+2025-09-24 11:03:54,826 [DEBUG] mindestentinel.ai_engine: ModelManager injiziert.
+2025-09-24 11:03:54,826 [INFO] mindestentinel.main: knowledge_base nicht in AIBrain gefunden - initialisiere neu
+2025-09-24 11:03:54,827 [DEBUG] mindestentinel.knowledge_base: Verschlüsselungssystem initialisiert.
+2025-09-24 11:03:54,829 [INFO] mindestentinel.knowledge_base: Datenbankstruktur initialisiert.
+2025-09-24 11:03:54,829 [INFO] mindestentinel.knowledge_base: Wissensdatenbank initialisiert: data/knowledge/knowledge.db
+2025-09-24 11:03:54,829 [INFO] mindestentinel.main: Initialisiere UserManager...
+2025-09-24 11:03:54,830 [DEBUG] mindestentinel.user_manager: Benutzertabelle initialisiert.
+2025-09-24 11:03:54,830 [INFO] mindestentinel.user_manager: UserManager initialisiert.
+2025-09-24 11:03:54,831 [INFO] mindestentinel.main: Standard-Admin-Benutzer 'admin' existiert bereits
+2025-09-24 11:03:54,831 [INFO] mindestentinel.main: model_orchestrator nicht in AIBrain gefunden - initialisiere neu
+2025-09-24 11:03:54,831 [INFO] src.core.multi_model_orchestrator: MultiModelOrchestrator initialisiert.
+2025-09-24 11:03:54,832 [DEBUG] src.core.multi_model_orchestrator: ModelManager injiziert
+2025-09-24 11:03:54,832 [INFO] mindestentinel.main: rule_engine nicht in AIBrain gefunden - verwende vorinitialisierte Instanz
+2025-09-24 11:03:54,832 [INFO] mindestentinel.main: protection_module nicht in AIBrain gefunden - initialisiere neu mit rule_engine
+2025-09-24 11:03:54,832 [INFO] mindestentinel.main: system_monitor nicht in AIBrain gefunden - initialisiere neu
+2025-09-24 11:03:54,832 [INFO] src.core.system_monitor: SystemMonitor initialisiert.
+2025-09-24 11:03:54,832 [INFO] mindestentinel.main: Initialisiere ModelCloner...
+2025-09-24 11:03:54,833 [INFO] mindestentinel.model_cloner: ModelCloner initialisiert. Backup-Verzeichnis: data/models/backups
+2025-09-24 11:03:54,833 [INFO] mindestentinel.main: Initialisiere KnowledgeTransfer...
+2025-09-24 11:03:54,833 [INFO] mindestentinel.knowledge_transfer: KnowledgeTransfer initialisiert.
+2025-09-24 11:03:54,833 [INFO] mindestentinel.main: Registriere 1 Modelle als Lehrer-Modelle: ['tiny-llama']
+2025-09-24 11:03:54,833 [INFO] src.core.multi_model_orchestrator: Lehrer-Modell registriert: tiny-llama
+2025-09-24 11:03:54,833 [INFO] mindestentinel.main: Initialisiere den autonomen Lernzyklus...
+2025-09-24 11:03:54,833 [INFO] mindestentinel.autonomous_loop: AutonomousLoop initialisiert. Warte auf Aktivierung...
+2025-09-24 11:03:54,833 [INFO] mindestentinel.main: Autonomer Lernzyklus erfolgreich initialisiert
+2025-09-24 11:03:54,904 [INFO] mindestentinel.main: Plugins auto-loaded: 5
+2025-09-24 11:03:54,904 [INFO] mindestentinel.ai_engine: AIBrain gestartet.
+2025-09-24 11:03:54,904 [INFO] mindestentinel.main: Aktiviere autonomen Lernzyklus...
+2025-09-24 11:03:54,905 [INFO] mindestentinel.autonomous_loop: AutonomousLoop aktiviert. Beginne mit Lernzyklen...
+2025-09-24 11:03:54,905 [INFO] mindestentinel.autonomous_loop: Beginne Hintergrundloop für autonomen Lernzyklus.
+2025-09-24 11:03:54,908 [INFO] mindestentinel.main: Starting REST API on 0.0.0.0:8000
+2025-09-24 11:03:54,911 [DEBUG] asyncio: Using proactor: IocpProactor
+2025-09-24 11:04:15,688 [INFO] mindestentinel.main: Received KeyboardInterrupt. Shutting down.
+2025-09-24 11:04:15,688 [INFO] mindestentinel.main: Deaktiviere autonomen Lernzyklus...
+2025-09-24 11:04:15,688 [INFO] mindestentinel.autonomous_loop: AutonomousLoop deaktiviert.
+2025-09-24 11:04:20,701 [INFO] mindestentinel.ai_engine: AIBrain gestoppt.
+2025-09-24 11:04:20,701 [INFO] mindestentinel.main: System shutdown complete.
+2025-09-24 11:21:29,725 [INFO] root: Logging konfiguriert. Logs werden gespeichert in: C:\Users\bkrie\Desktop\Mindestentinel\Mindestentinel - Alpha-Projekt build0015.2A\logs\mindestentinel_20250924.log
+2025-09-24 11:21:29,726 [INFO] mindestentinel.main: Debug-Modus aktiviert
+2025-09-24 11:21:29,726 [INFO] mindestentinel.main: Initialisiere ModelManager...
+2025-09-24 11:21:29,943 [INFO] mindestentinel.model_manager: Modell 'tiny-llama' erfolgreich geladen.
+2025-09-24 11:21:29,944 [INFO] mindestentinel.model_manager: Geladen: 1 Modelle aus model_registry.json
+2025-09-24 11:21:29,944 [INFO] mindestentinel.model_manager: ModelManager initialisiert mit 1 Modellen aus data/models.
+2025-09-24 11:21:29,944 [INFO] mindestentinel.main: Initialisiere PluginManager...
+2025-09-24 11:21:29,944 [INFO] mindestentinel.main: Initialisiere RuleEngine...
+2025-09-24 11:21:29,947 [INFO] mindestentinel.rule_engine: 2 Regeln geladen aus config\rules.yaml
+2025-09-24 11:21:29,952 [ERROR] mindestentinel.rule_engine: Regel-Signatur ungültig
+2025-09-24 11:21:29,952 [INFO] mindestentinel.rule_engine: Starte Regeldatei-Überwachung (Intervall: 30 Sekunden)...
+2025-09-24 11:21:29,953 [INFO] mindestentinel.rule_engine: RuleEngine initialisiert mit 2 Regeln.
+2025-09-24 11:21:29,953 [INFO] mindestentinel.main: Initialisiere AIBrain...
+2025-09-24 11:21:29,953 [INFO] mindestentinel.ai_engine: AIBrain initialisiert.
+2025-09-24 11:21:29,953 [DEBUG] mindestentinel.ai_engine: ModelManager injiziert.
+2025-09-24 11:21:29,953 [INFO] mindestentinel.main: knowledge_base nicht in AIBrain gefunden - initialisiere neu
+2025-09-24 11:21:29,954 [DEBUG] mindestentinel.knowledge_base: Verschlüsselungssystem initialisiert.
+2025-09-24 11:21:29,956 [INFO] mindestentinel.knowledge_base: Datenbankstruktur initialisiert.
+2025-09-24 11:21:29,956 [INFO] mindestentinel.knowledge_base: Wissensdatenbank initialisiert: data/knowledge/knowledge.db
+2025-09-24 11:21:29,956 [INFO] mindestentinel.main: Initialisiere UserManager...
+2025-09-24 11:21:29,957 [DEBUG] mindestentinel.user_manager: Benutzertabelle initialisiert.
+2025-09-24 11:21:29,957 [INFO] mindestentinel.user_manager: UserManager initialisiert.
+2025-09-24 11:21:29,958 [INFO] mindestentinel.main: Standard-Admin-Benutzer 'admin' existiert bereits
+2025-09-24 11:21:29,958 [INFO] mindestentinel.main: model_orchestrator nicht in AIBrain gefunden - initialisiere neu
+2025-09-24 11:21:29,958 [INFO] src.core.multi_model_orchestrator: MultiModelOrchestrator initialisiert.
+2025-09-24 11:21:29,958 [DEBUG] src.core.multi_model_orchestrator: ModelManager injiziert
+2025-09-24 11:21:29,959 [INFO] mindestentinel.main: rule_engine nicht in AIBrain gefunden - verwende vorinitialisierte Instanz
+2025-09-24 11:21:29,959 [INFO] mindestentinel.main: protection_module nicht in AIBrain gefunden - initialisiere neu mit rule_engine
+2025-09-24 11:21:29,959 [INFO] mindestentinel.main: system_monitor nicht in AIBrain gefunden - initialisiere neu
+2025-09-24 11:21:29,959 [INFO] src.core.system_monitor: SystemMonitor initialisiert.
+2025-09-24 11:21:29,959 [INFO] mindestentinel.main: Initialisiere ModelCloner...
+2025-09-24 11:21:29,959 [INFO] mindestentinel.model_cloner: ModelCloner initialisiert. Backup-Verzeichnis: data/models/backups
+2025-09-24 11:21:29,960 [INFO] mindestentinel.main: Initialisiere KnowledgeTransfer...
+2025-09-24 11:21:29,960 [INFO] mindestentinel.knowledge_transfer: KnowledgeTransfer initialisiert.
+2025-09-24 11:21:29,960 [INFO] mindestentinel.main: Initialisiere ModelTrainer...
+2025-09-24 11:21:29,960 [INFO] mindestentinel.model_trainer: ModelTrainer initialisiert.
+2025-09-24 11:21:29,960 [INFO] mindestentinel.main: Registriere 1 Modelle als Lehrer-Modelle: ['tiny-llama']
+2025-09-24 11:21:29,960 [INFO] src.core.multi_model_orchestrator: Lehrer-Modell registriert: tiny-llama
+2025-09-24 11:21:29,960 [INFO] mindestentinel.main: Initialisiere den autonomen Lernzyklus...
+2025-09-24 11:21:29,960 [INFO] mindestentinel.autonomous_loop: AutonomousLoop initialisiert. Warte auf Aktivierung...
+2025-09-24 11:21:29,960 [INFO] mindestentinel.main: Autonomer Lernzyklus erfolgreich initialisiert
+2025-09-24 11:21:30,033 [INFO] mindestentinel.main: Plugins auto-loaded: 5
+2025-09-24 11:21:30,034 [INFO] mindestentinel.ai_engine: AIBrain gestartet.
+2025-09-24 11:21:30,034 [INFO] mindestentinel.main: Aktiviere autonomen Lernzyklus...
+2025-09-24 11:21:30,034 [INFO] mindestentinel.autonomous_loop: AutonomousLoop aktiviert. Beginne mit Lernzyklen...
+2025-09-24 11:21:30,035 [INFO] mindestentinel.autonomous_loop: Beginne Hintergrundloop für autonomen Lernzyklus.
+2025-09-24 11:21:30,037 [INFO] mindestentinel.main: Starting REST API on 0.0.0.0:8000
+2025-09-24 11:21:30,041 [DEBUG] asyncio: Using proactor: IocpProactor
+2025-09-24 11:22:02,303 [INFO] mindestentinel.main: Received KeyboardInterrupt. Shutting down.
+2025-09-24 11:22:02,303 [INFO] mindestentinel.main: Deaktiviere autonomen Lernzyklus...
+2025-09-24 11:22:02,303 [INFO] mindestentinel.autonomous_loop: AutonomousLoop deaktiviert.
+2025-09-24 11:22:07,311 [INFO] mindestentinel.ai_engine: AIBrain gestoppt.
+2025-09-24 11:22:07,311 [INFO] mindestentinel.main: System shutdown complete.
