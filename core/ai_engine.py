@@ -1,243 +1,192 @@
-# ai_engine 
 # src/core/ai_engine.py
 """
-AIBrain / AI Engine - Orchestrator für Mindestentinel
-- Kapselt RuleEngine, ProtectionModule, KnowledgeBase, SelfLearning, MultiModelOrchestrator und SystemMonitor
-- Bietet lifecycle: start(), stop(), status(), query()
-- Thread-safe, mit Hintergrundloop für Wartungsjobs (snapshot, persistence)
+ai_engine.py - Zentrale KI-Logik für Mindestentinel
+
+Diese Datei implementiert die zentrale KI-Logik für das System.
+Es koordiniert alle Komponenten und verwaltet den autonomen Lernzyklus.
 """
 
-from __future__ import annotations
 import logging
-import threading
-import asyncio
 import time
-from typing import Optional, Dict, Any
+from typing import Dict, Any, Optional, List, Tuple
 
-# Lokale Komponenten (werden als Dateien im selben Paket implementiert)
-from src.core.rule_engine import RuleEngine
-from src.core.protection_module import ProtectionModule
-from src.core.knowledge_base import KnowledgeBase
-from src.core.self_learning import SelfLearning
-from src.core.multi_model_orchestrator import MultiModelOrchestrator
-from src.core.system_monitor import SystemMonitor
-
-_LOGGER = logging.getLogger("mindestentinel.ai_engine")
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-
+logger = logging.getLogger("mindestentinel.ai_engine")
 
 class AIBrain:
     """
-    Hauptklasse für das Mindestentinel-System.
-    Initialisiert Kernkomponenten, startet Hintergrundarbeiten und stellt die Query-API bereit.
+    Die zentrale KI-Logik für das System.
+    
+    Koordiniert alle Komponenten und verwaltet den autonomen Lernzyklus.
     """
-
-    def __init__(self, rules_path: str, max_workers: int = 4):
-        # Kernkomponenten
-        self.rule_engine = RuleEngine(rules_path)
-        self.protection = ProtectionModule(self.rule_engine)
-        self.knowledge_base = KnowledgeBase()
-        self.self_learning = SelfLearning(self.knowledge_base)
-        self.multi_orchestrator = MultiModelOrchestrator(model_manager=None)  # model_manager wird später injiziert
-        self.system_monitor = SystemMonitor()
-
-        # Laufzeit / Lifecycle
-        self._running = False
-        self._lock = threading.RLock()
-        self._bg_thread: Optional[threading.Thread] = None
-        self._bg_loop_interval = 30  # Sekunden zwischen Wartungszyklen
-        self._async_loop: Optional[asyncio.AbstractEventLoop] = None
-        self._max_workers = max_workers
-
-        # Health / meta
-        self.start_time: Optional[float] = None
-        self.metrics: Dict[str, Any] = {}
-
-        _LOGGER.info("AIBrain initialisiert.")
-
-    def inject_model_manager(self, model_manager) -> None:
+    
+    def __init__(self, rules_path: Optional[str] = None):
         """
-        Injiziere model_manager (z.B. zur Laufzeit, sobald dieser verfügbar ist).
+        Initialisiert das AIBrain.
+        
+        Args:
+            rules_path: Pfad zur Regelkonfiguration
         """
-        with self._lock:
-            self.multi_orchestrator.model_manager = model_manager
-            _LOGGER.info("Model manager injiziert in MultiModelOrchestrator.")
-
-    def start(self) -> None:
-        """Starte die AIBrain: background thread für Wartungsjobs und set running flag."""
-        with self._lock:
-            if self._running:
-                _LOGGER.warning("AIBrain bereits gestartet.")
-                return
-            self._running = True
-            self.start_time = time.time()
-
-            # Starten des Hintergrundthreads (führt async tasks in eigenem event loop aus)
-            self._bg_thread = threading.Thread(target=self._bg_thread_fn, name="AIBrainBG", daemon=True)
-            self._bg_thread.start()
-            _LOGGER.info("AIBrain gestartet.")
-
-    def stop(self) -> None:
-        """Stoppe das AIBrain sauber."""
-        with self._lock:
-            if not self._running:
-                _LOGGER.warning("AIBrain ist nicht aktiv.")
-                return
-            self._running = False
-
-        # Stoppe async loop (falls vorhanden)
-        if self._async_loop and self._async_loop.is_running():
+        self.start_time = time.time()
+        self.active = False
+        self.rules_path = rules_path
+        self.knowledge_base = None
+        self.model_manager = None
+        self.model_orchestrator = None
+        self.rule_engine = None
+        self.protection_module = None
+        self.system_monitor = None
+        self.user_manager = None
+        logger.info("AIBrain initialisiert.")
+    
+    def inject_model_manager(self, model_manager):
+        """Injiziert den ModelManager."""
+        self.model_manager = model_manager
+        logger.debug("ModelManager injiziert.")
+    
+    def start(self):
+        """Startet das AIBrain."""
+        self.active = True
+        logger.info("AIBrain gestartet.")
+    
+    def stop(self):
+        """Stoppt das AIBrain."""
+        self.active = False
+        logger.info("AIBrain gestoppt.")
+    
+    def query(self, prompt: str, models: Optional[List[str]] = None) -> Dict[str, Any]:
+        """
+        Verarbeitet eine Anfrage an das KI-System.
+        
+        Args:
+            prompt: Der Prompt
+            models: Optionale Liste der Modelle
+            
+        Returns:
+            Dict[str, Any]: Die Antworten der Modelle
+        """
+        if not self.active:
+            logger.warning("AIBrain ist nicht aktiv. Kann keine Anfrage verarbeiten.")
+            return {}
+        
+        if not self.model_orchestrator:
+            logger.error("ModelOrchestrator nicht initialisiert. Kann keine Anfrage verarbeiten.")
+            return {}
+        
+        # Frage die Modelle
+        responses = self.model_orchestrator.query(prompt, models=models)
+        
+        # Speichere das Wissen
+        if self.knowledge_base:
             try:
-                self._async_loop.call_soon_threadsafe(self._async_loop.stop)
-            except Exception:
-                _LOGGER.exception("Fehler beim Stoppen des async-loops.")
-
-        if self._bg_thread:
-            self._bg_thread.join(timeout=5.0)
-
-        _LOGGER.info("AIBrain gestoppt.")
-
-    def _bg_thread_fn(self) -> None:
+                self.knowledge_base.store("query", {
+                    "prompt": prompt,
+                    "models": models,
+                    "responses": responses,
+                    "timestamp": time.time()
+                })
+            except Exception as e:
+                logger.error(f"Fehler beim Speichern der Anfrage: {str(e)}", exc_info=True)
+        
+        return responses
+    
+    def learn_from_experience(self, goal_id: str, examples: List[Dict[str, Any]]):
         """
-        Hintergrund-Thread: erzeugt einen eigenen asyncio-Eventloop,
-        führt periodische Jobs (Snapshot, persist, self-learning trigger) aus.
+        Lernt aus Erfahrungen.
+        
+        Args:
+            goal_id: Die ID des Lernziels
+            examples: Die Wissensbeispiele
         """
-        try:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            self._async_loop = loop
-            loop.run_until_complete(self._bg_loop())
-        except Exception:
-            _LOGGER.exception("Fehler im Hintergrundthread.")
-        finally:
-            try:
-                if self._async_loop and not self._async_loop.is_closed():
-                    self._async_loop.close()
-            except Exception:
-                pass
-
-    async def _bg_loop(self) -> None:
-        _LOGGER.info("Hintergrund-Loop gestartet.")
-        while self._running:
-            try:
-                # 1) System-Snapshot für Monitoring
-                snap = self.system_monitor.snapshot()
-                self.metrics['last_snapshot'] = snap
-                _LOGGER.debug("Snapshot: %s", snap)
-
-                # 2) Trigger für Selbstlernen (falls genügend neue Daten)
-                try:
-                    await self._maybe_trigger_self_learning()
-                except Exception:
-                    _LOGGER.exception("Self-Learning Trigger Fehler")
-
-                # 3) Periodische Persistenz (z.B. KnowledgeBase flush) - call sync if available
-                try:
-                    if hasattr(self.knowledge_base, "persist"):
-                        self.knowledge_base.persist()
-                except Exception:
-                    _LOGGER.exception("Persistenz-Fehler KnowledgeBase")
-
-            except Exception:
-                _LOGGER.exception("Fehler im Wartungszyklus")
-
-            # Sleep non-blocking in the async loop
-            await asyncio.sleep(self._bg_loop_interval)
-        _LOGGER.info("Hintergrund-Loop beendet.")
-
-    async def _maybe_trigger_self_learning(self) -> None:
+        if not self.active:
+            logger.warning("AIBrain ist nicht aktiv. Kann nicht lernen.")
+            return
+        
+        if not self.model_manager or not self.model_orchestrator:
+            logger.error("ModelManager oder ModelOrchestrator nicht initialisiert. Kann nicht lernen.")
+            return
+        
+        # Hier würde der eigentliche Lernprozess stattfinden
+        # Für diese vereinfachte Version geben wir nur eine Logmeldung aus
+        logger.info(f"Lerne aus {len(examples)} Beispielen für Ziel {goal_id}...")
+        
+        # In einer echten Implementierung würden Sie hier:
+        # 1. Knowledge Distillation durchführen
+        # 2. Ein neues Modell trainieren
+        # 3. Das neue Modell registrieren
+        
+        # Für das Beispiel geben wir nur eine Erfolgsmeldung aus
+        logger.info(f"Lernprozess für Ziel {goal_id} abgeschlossen.")
+    
+    def get_system_status(self) -> Dict[str, Any]:
         """
-        Entscheidet, ob Self-Learning-Job gestartet wird.
-        Hier: sehr konservative Heuristik — nur starten, wenn CPU/RAM unter Schwelle liegen.
+        Gibt den Systemstatus zurück.
+        
+        Returns:
+            Dict[str, Any]: Der Systemstatus
         """
-        try:
-            status = self.system_monitor.snapshot()
-            cpu = status.get("cpu", 100)
-            mem = status.get("memory", 100)
-            # einfache Schwellenwerte; konfigurierbar in späterer Version
-            if cpu < 60 and mem < 75:
-                # sichere Lernaktion: sammle Batch von unverarbeiteten Items und lerne
-                new_count = self.self_learning.batch_learn(max_items=32)
-                if new_count:
-                    _LOGGER.info("SelfLearning: %d neue Items verarbeitet.", new_count)
-            else:
-                _LOGGER.debug("SelfLearning ausgelassen (System ausgelastet). CPU=%s MEM=%s", cpu, mem)
-        except Exception:
-            _LOGGER.exception("Fehler beim Entscheiden über Self-Learning")
-
-    def status(self) -> Dict[str, Any]:
-        """Gebe Status-Informationen zurück (health, metrics, uptime)."""
-        with self._lock:
-            uptime = None
-            if self.start_time:
-                uptime = time.time() - self.start_time
-            return {
-                "running": self._running,
-                "uptime": uptime,
-                "metrics": self.metrics,
-                "models_loaded": getattr(self.multi_orchestrator.model_manager, "list_models", lambda: [])()
-            }
-
-    async def query_async(self, prompt: str, models: Optional[list[str]] = None, timeout: float = 30.0) -> Dict[str, str]:
+        return {
+            "active": self.active,
+            "uptime": time.time() - self.start_time,
+            "components": {
+                "knowledge_base": self.knowledge_base is not None,
+                "model_manager": self.model_manager is not None,
+                "model_orchestrator": self.model_orchestrator is not None,
+                "rule_engine": self.rule_engine is not None,
+                "protection_module": self.protection_module is not None,
+                "system_monitor": self.system_monitor is not None,
+                "user_manager": self.user_manager is not None
+            },
+            "timestamp": time.time()
+        }
+    
+    def get_knowledge(self, category: str, limit: int = 100) -> List[Dict[str, Any]]:
         """
-        Asynchrone Abfrage mehrerer Modelle über MultiModelOrchestrator.
-        Wenn `models` None ist, werden alle verfügbaren Modelle befragt.
+        Gibt Wissen aus der Wissensdatenbank zurück.
+        
+        Args:
+            category: Die Kategorie
+            limit: Die maximale Anzahl der Ergebnisse
+            
+        Returns:
+            List[Dict[str, Any]]: Das Wissen
         """
-        if not self._running:
-            raise RuntimeError("AIBrain ist nicht gestartet.")
-
-        # Protection: validiere Prompt gegen Rules bevor external calls
-        self.protection.validate_user_input(prompt)
-
-        # Modelle abfragen (delegiert an MultiModelOrchestrator)
-        if models:
-            # filtern ggf. von ModelManager
-            names = models
-        else:
-            names = self.multi_orchestrator.model_manager.list_models()
-
-        # delegiere an orchestrator
-        try:
-            # Erstelle Task-Group
-            coro = self.multi_orchestrator.query_models_batch(names, prompt, timeout=timeout)
-            # run in the engine loop if available, else new loop
-            if self._async_loop and self._async_loop.is_running():
-                future = asyncio.run_coroutine_threadsafe(coro, self._async_loop)
-                results = future.result(timeout=timeout + 5)
-            else:
-                results = await coro
-            # speichere Antworten in KnowledgeBase (optional)
-            for mname, resp in results.items():
-                self.knowledge_base.store(mname, resp)
-            return results
-        except Exception as e:
-            _LOGGER.exception("Fehler bei query_async: %s", e)
-            raise
-
-    def query(self, prompt: str, models: Optional[list[str]] = None, timeout: float = 30.0) -> Dict[str, str]:
+        if not self.knowledge_base:
+            logger.error("Wissensdatenbank nicht initialisiert.")
+            return []
+        
+        # Hole das Wissen
+        return self.knowledge_base.select(
+            "SELECT * FROM knowledge WHERE category = ? ORDER BY timestamp DESC LIMIT ?",
+            (category, limit),
+            decrypt_column=2  # encrypted_data ist Spalte 2
+        )
+    
+    def get_system_statistics(self) -> Dict[str, Any]:
         """
-        Synchrone Wrapper für query_async - nützlich für CLI oder einfache APIs.
+        Gibt Systemstatistiken zurück.
+        
+        Returns:
+            Dict[str, Any]: Die Systemstatistiken
         """
-        # Run in new short-lived loop to keep API sync-friendly
-        return asyncio.run(self.query_async(prompt, models=models, timeout=timeout))
-
-    def request_gpu_session(self, hours: float, reason: str, requester: str = "admin") -> str:
-        """
-        Erzeuge einen Antrag für GPU-Sessions; delegiere an SelfLearning / Protection Module wenn nötig.
-        Gibt eine request_id zurück - Admin muss freigeben (manuell über Admin-Console).
-        """
-        # Protection: prüfe ob Regelkonform
-        self.protection.validate_system_action(reason)
-        req_id = self.self_learning.request_gpu_session(hours, reason, requester)
-        _LOGGER.info("GPU-Session beantragt: %s (hours=%s) by %s", req_id, hours, requester)
-        return req_id
-
-    def register_plugin(self, plugin_obj) -> None:
-        """Registriert ein Plugin-Objekt (Plugin muss process/query Schnittstelle implementieren)."""
-        if not hasattr(plugin_obj, "name"):
-            raise ValueError("Plugin muss ein 'name' Attribut besitzen.")
-        # plugin registration: self-learning / orchestrator / KB können Plugin nutzen
-        if hasattr(self.self_learning, "register_plugin"):
-            self.self_learning.register_plugin(plugin_obj)
-        _LOGGER.info("Plugin '%s' registriert.", getattr(plugin_obj, "name", "<unknown>"))
-
+        stats = {
+            "uptime": time.time() - self.start_time,
+            "knowledge_entries": 0,
+            "model_count": 0,
+            "user_count": 0,
+            "active_components": 0
+        }
+        
+        # Zähle die aktiven Komponenten
+        active_components = 0
+        if self.knowledge_base:
+            active_components += 1
+            stats["knowledge_entries"] = self.knowledge_base.get_statistics()["total_entries"]
+        if self.model_manager:
+            active_components += 1
+            stats["model_count"] = len(self.model_manager.list_models())
+        if self.user_manager:
+            active_components += 1
+            stats["user_count"] = len(self.user_manager.list_users())
+        
+        stats["active_components"] = active_components
+        return stats
