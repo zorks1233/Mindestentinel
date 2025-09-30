@@ -10,6 +10,7 @@ import logging
 import os
 import json
 import time
+import bcrypt  # Stellen Sie sicher: pip install bcrypt
 from typing import Dict, Any, Optional, List
 
 logger = logging.getLogger("mindestentinel.user_manager")
@@ -47,7 +48,9 @@ class UserManager:
                     is_admin BOOLEAN NOT NULL DEFAULT 0,
                     created_at REAL NOT NULL,
                     last_login REAL,
-                    enabled BOOLEAN NOT NULL DEFAULT 1
+                    enabled BOOLEAN NOT NULL DEFAULT 1,
+                    totp_secret TEXT,
+                    backup_codes TEXT
                 )
             """)
             logger.debug("Benutzertabelle initialisiert.")
@@ -72,7 +75,7 @@ class UserManager:
                 logger.warning(f"Benutzer '{username}' existiert bereits.")
                 return False
             
-            # Hash das Passwort (in einer echten Implementierung)
+            # Hash das Passwort MIT BCRYPT
             password_hash = self._hash_password(password)
             
             # Füge den Benutzer hinzu
@@ -89,7 +92,7 @@ class UserManager:
     
     def _hash_password(self, password: str) -> str:
         """
-        Hashed ein Passwort.
+        Hashed ein Passwort MIT BCRYPT.
         
         Args:
             password: Das Passwort
@@ -97,9 +100,10 @@ class UserManager:
         Returns:
             str: Der Passwort-Hash
         """
-        # In einer echten Implementierung würden Sie hier ein sicheres Hashing verwenden
-        # Für das Beispiel geben wir einfach den Rohpasswort-Hash zurück
-        return password  # NICHT FÜR PRODUKTION - NUR FÜR BEISPIELE
+        # Generiere einen Salt und hash das Passwort MIT BCRYPT
+        salt = bcrypt.gensalt()
+        hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
+        return hashed.decode('utf-8')
     
     def user_exists(self, username: str) -> bool:
         """
@@ -116,7 +120,7 @@ class UserManager:
                 "SELECT COUNT(*) FROM users WHERE username = ?",
                 (username,)
             )
-            return result[0][0] > 0
+            return len(result) > 0 and result[0][0] > 0
         except Exception as e:
             logger.error(f"Fehler bei der Überprüfung der Benutzerexistenz: {str(e)}", exc_info=True)
             return False
@@ -142,10 +146,13 @@ class UserManager:
                 return {
                     "id": user_data[0],
                     "username": user_data[1],
-                    "is_admin": bool(user_data[2]),
-                    "created_at": user_data[3],
-                    "last_login": user_data[4],
-                    "enabled": bool(user_data[5])
+                    "password_hash": user_data[2],
+                    "is_admin": bool(user_data[3]),
+                    "created_at": user_data[4],
+                    "last_login": user_data[5],
+                    "enabled": bool(user_data[6]),
+                    "totp_secret": user_data[7],
+                    "backup_codes": user_data[8]
                 }
             else:
                 logger.warning(f"Benutzer '{username}' nicht gefunden.")
@@ -226,10 +233,8 @@ class UserManager:
                 users.append({
                     "id": user_data[0],
                     "username": user_data[1],
-                    "is_admin": bool(user_data[2]),
-                    "created_at": user_data[3],
-                    "last_login": user_data[4],
-                    "enabled": bool(user_data[5])
+                    "is_admin": bool(user_data[3]),
+                    "created_at": user_data[4]
                 })
             
             return users

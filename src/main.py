@@ -1,5 +1,4 @@
-# -*- coding: utf-8 -*-
-from __future__ import annotations
+# src/main.py
 """
 Einstiegspunkt für Mindestentinel.
 - Startet AIBrain, ModelManager, PluginManager
@@ -54,11 +53,12 @@ from src.core.protection_module import ProtectionModule
 from src.core.system_monitor import SystemMonitor
 from src.core.model_cloner import ModelCloner
 from src.core.knowledge_transfer import KnowledgeTransfer
-from src.core.model_trainer import ModelTrainer  # Importiere den ModelTrainer
+from src.core.model_trainer import ModelTrainer
+from src.core.auth_manager import AuthManager
+from src.core.user_manager import UserManager
 from src.api.rest_api import create_app
 from src.api.websocket_api import create_ws_app
 from src.core.logging_config import setup_logging
-from src.core.user_manager import UserManager
 
 # Setze Logging vor allen anderen Initialisierungen
 setup_logging()
@@ -110,7 +110,13 @@ def handle_admin_commands():
     
     return False
 
-def build_components(rules_path: Optional[str] = None, enable_autonomy: bool = False) -> Tuple[AIBrain, ModelManager, PluginManager, Optional['AutonomousLoop'], UserManager]:
+def get_absolute_db_path():
+    """Gibt den absoluten Pfad zur Wissensdatenbank zurück."""
+    # Bestimme das Projekt-Root absolut
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(project_root, "data", "knowledge", "knowledge.db")
+
+def build_components(rules_path: Optional[str] = None, enable_autonomy: bool = False) -> Tuple[AIBrain, ModelManager, PluginManager, Optional['AutonomousLoop'], UserManager, AuthManager]:
     """
     Initialisiert alle Systemkomponenten
     
@@ -119,7 +125,7 @@ def build_components(rules_path: Optional[str] = None, enable_autonomy: bool = F
         enable_autonomy: Gibt an, ob der autonome Lernzyklus benötigt wird
         
     Returns:
-        Tupel mit (brain, model_manager, plugin_manager, autonomous_loop, user_manager)
+        Tupel mit (brain, model_manager, plugin_manager, autonomous_loop, user_manager, auth_manager)
         Der letzte Wert ist None, wenn enable_autonomy=False oder nicht verfügbar
     """
     _LOG.info("Initialisiere ModelManager...")
@@ -139,21 +145,33 @@ def build_components(rules_path: Optional[str] = None, enable_autonomy: bool = F
     # inject model manager
     brain.inject_model_manager(mm)
     
-    # Stelle sicher, dass alle benötigten Komponenten im Brain sind
-    # Erstelle sie, falls nicht vorhanden
-    if not hasattr(brain, 'knowledge_base') or brain.knowledge_base is None:
-        _LOG.info("knowledge_base nicht in AIBrain gefunden - initialisiere neu")
-        brain.knowledge_base = KnowledgeBase()
+    # Bestimme den absoluten Datenbankpfad
+    db_path = get_absolute_db_path()
     
-    # Initialisiere den UserManager
+    # Stelle sicher, dass das Verzeichnis existiert
+    os.makedirs(os.path.dirname(db_path), exist_ok=True)
+    
+    # Initialisiere die KnowledgeBase mit absolutem Pfad
+    if not hasattr(brain, 'knowledge_base') or brain.knowledge_base is None:
+        _LOG.info(f"knowledge_base nicht in AIBrain gefunden - initialisiere neu mit Pfad: {db_path}")
+        brain.knowledge_base = KnowledgeBase(db_path=db_path)
+    
+    # Initialisiere den UserManager mit der KnowledgeBase
     _LOG.info("Initialisiere UserManager...")
     user_manager = UserManager(brain.knowledge_base)
+    
+    # Initialisiere den AuthManager mit der KnowledgeBase
+    _LOG.info("Initialisiere AuthManager...")
+    auth_manager = AuthManager(brain.knowledge_base, user_manager)
     
     # Stelle sicher, dass mindestens ein Admin-Benutzer existiert
     try:
         # Versuche, den Admin-Benutzer zu erstellen
-        user_manager.create_user("admin", "admin123", is_admin=True)
-        _LOG.info("Standard-Admin-Benutzer 'admin' erstellt")
+        if not user_manager.user_exists("admin"):
+            user_manager.create_user("admin", "admin123", is_admin=True)
+            _LOG.info("Standard-Admin-Benutzer 'admin' erstellt")
+        else:
+            _LOG.info("Standard-Admin-Benutzer 'admin' existiert bereits")
     except ValueError:
         _LOG.info("Standard-Admin-Benutzer 'admin' existiert bereits")
     
@@ -225,6 +243,7 @@ def build_components(rules_path: Optional[str] = None, enable_autonomy: bool = F
                 system_monitor=brain.system_monitor,
                 model_cloner=model_cloner,
                 knowledge_transfer=knowledge_transfer,
+                model_trainer=model_trainer,
                 config={
                     "max_learning_cycles": 1000,
                     "learning_interval_seconds": 1800,  # Alle 30 Minuten
@@ -242,7 +261,7 @@ def build_components(rules_path: Optional[str] = None, enable_autonomy: bool = F
             _LOG.error(f"Fehler bei der Initialisierung des autonomen Lernzyklus: {str(e)}", exc_info=True)
             autonomous_loop = None
     
-    return brain, mm, pm, autonomous_loop, user_manager
+    return brain, mm, pm, autonomous_loop, user_manager, auth_manager
 
 def parse_args(argv=None):
     p = argparse.ArgumentParser(description='Mindestentinel - Autonomous AI System')
@@ -276,7 +295,7 @@ def main():
         _LOG.warning(f"Multiprocessing-Startmethode konnte nicht gesetzt werden: {str(e)}")
     
     # Initialisiere alle Komponenten
-    brain, mm, pm, autonomous_loop, user_manager = build_components(enable_autonomy=args.enable_autonomy)
+    brain, mm, pm, autonomous_loop, user_manager, auth_manager = build_components(enable_autonomy=args.enable_autonomy)
 
     # Plugins aus dem plugins/ Verzeichnis laden
     try:
@@ -300,13 +319,15 @@ def main():
     # Starte die API, falls gewünscht
     api_thread = None
     if args.start_rest:
-        app = create_app(brain, mm, pm)
+        # Erstelle die REST API mit Authentifizierung
+        app = create_app(brain, mm, pm, auth_manager)
         _LOG.info("Starting REST API on %s:%d", args.api_host, args.api_port)
         # Starte die REST API in einem separaten Thread, damit wir auf KeyboardInterrupt reagieren können
         api_thread = threading.Thread(target=uvicorn.run, args=(app,), kwargs={"host": args.api_host, "port": args.api_port}, daemon=True)
         api_thread.start()
     elif args.start_ws:
-        app = create_ws_app(brain)
+        # Erstelle die WebSocket API mit Authentifizierung
+        app = create_ws_app(brain, auth_manager)
         _LOG.info("Starting WebSocket API on %s:%d", args.api_host, args.api_port)
         # Starte die WebSocket API in einem separaten Thread
         api_thread = threading.Thread(target=uvicorn.run, args=(app,), kwargs={"host": args.api_host, "port": args.api_port}, daemon=True)
@@ -331,20 +352,27 @@ def main():
             time.sleep(1)
     except KeyboardInterrupt:
         _LOG.info("Received KeyboardInterrupt. Shutting down.")
+    except Exception as e:
+        _LOG.critical(f"Ungefangene Ausnahme im Hauptloop: {str(e)}", exc_info=True)
     
-    # Stoppe den autonomen Lernzyklus, wenn aktiv
-    if args.enable_autonomy and autonomous_loop is not None and autonomous_loop.active:
-        _LOG.info("Deaktiviere autonomen Lernzyklus...")
-        autonomous_loop.stop()
-    
-    # Stoppe das Gehirn
-    brain.stop()
-    
-    _LOG.info("System shutdown complete.")
+    finally:
+        # Stoppe den autonomen Lernzyklus, wenn aktiv
+        if args.enable_autonomy and autonomous_loop is not None and autonomous_loop.active:
+            _LOG.info("Deaktiviere autonomen Lernzyklus...")
+            autonomous_loop.stop()
+        
+        # Stoppe das Gehirn
+        brain.stop()
+        
+        _LOG.info("System shutdown complete.")
 
 if __name__ == "__main__":
     try:
         multiprocessing.freeze_support()
     except Exception:
         pass
-    main()
+    try:
+        main()
+    except Exception as e:
+        _LOG.critical(f"Kritischer Fehler im Hauptprogramm: {str(e)}", exc_info=True)
+        sys.exit(1)
