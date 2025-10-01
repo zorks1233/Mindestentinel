@@ -10,7 +10,6 @@ import logging
 import os
 import json
 import time
-import bcrypt  # Stellen Sie sicher: pip install bcrypt
 from typing import Dict, Any, Optional, List
 
 logger = logging.getLogger("mindestentinel.user_manager")
@@ -76,7 +75,8 @@ class UserManager:
                 return False
             
             # Hash das Passwort MIT BCRYPT
-            password_hash = self._hash_password(password)
+            from src.core.passwords import hash_password
+            password_hash = hash_password(password)
             
             # Füge den Benutzer hinzu
             self.kb.execute(
@@ -89,21 +89,6 @@ class UserManager:
         except Exception as e:
             logger.error(f"Fehler beim Erstellen des Benutzers: {str(e)}", exc_info=True)
             return False
-    
-    def _hash_password(self, password: str) -> str:
-        """
-        Hashed ein Passwort MIT BCRYPT.
-        
-        Args:
-            password: Das Passwort
-            
-        Returns:
-            str: Der Passwort-Hash
-        """
-        # Generiere einen Salt und hash das Passwort MIT BCRYPT
-        salt = bcrypt.gensalt()
-        hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
-        return hashed.decode('utf-8')
     
     def user_exists(self, username: str) -> bool:
         """
@@ -241,3 +226,76 @@ class UserManager:
         except Exception as e:
             logger.error(f"Fehler beim Auflisten der Benutzer: {str(e)}", exc_info=True)
             return []
+    
+    def enable_user(self, username: str, enable: bool = True) -> bool:
+        """
+        Aktiviert oder deaktiviert einen Benutzer.
+        
+        Args:
+            username: Der Benutzername
+            enable: Gibt an, ob der Benutzer aktiviert werden soll
+            
+        Returns:
+            bool: True, wenn erfolgreich, sonst False
+        """
+        try:
+            return self.update_user(username, {"enabled": int(enable)})
+        except Exception as e:
+            logger.error(f"Fehler bei der Aktivierung/Deaktivierung des Benutzers: {str(e)}", exc_info=True)
+            return False
+    
+    def set_2fa_secret(self, username: str, secret: str, backup_codes: List[str]) -> bool:
+        """
+        Setzt das 2FA-Geheimnis und Backup-Codes für einen Benutzer.
+        
+        Args:
+            username: Der Benutzername
+            secret: Das TOTP-Geheimnis
+            backup_codes: Die Backup-Codes
+            
+        Returns:
+            bool: True, wenn erfolgreich, sonst False
+        """
+        try:
+            # Konvertiere die Backup-Codes in einen JSON-String
+            backup_codes_json = json.dumps(backup_codes)
+            
+            # Aktualisiere den Benutzer
+            return self.update_user(username, {
+                "totp_secret": secret,
+                "backup_codes": backup_codes_json
+            })
+        except Exception as e:
+            logger.error(f"Fehler beim Setzen des 2FA-Geheimnisses: {str(e)}", exc_info=True)
+            return False
+    
+    def verify_2fa_backup_code(self, username: str, code: str) -> bool:
+        """
+        Verifiziert einen 2FA-Backup-Code.
+        
+        Args:
+            username: Der Benutzername
+            code: Der zu verifizierende Code
+            
+        Returns:
+            bool: True, wenn der Code gültig ist, sonst False
+        """
+        try:
+            user = self.get_user(username)
+            if not user or not user["backup_codes"]:
+                return False
+            
+            # Lade die Backup-Codes
+            backup_codes = json.loads(user["backup_codes"])
+            
+            # Prüfe, ob der Code gültig ist
+            if code in backup_codes:
+                # Entferne den verwendeten Code
+                backup_codes.remove(code)
+                self.update_user(username, {"backup_codes": json.dumps(backup_codes)})
+                return True
+            
+            return False
+        except Exception as e:
+            logger.error(f"Fehler bei der Verifikation des 2FA-Backup-Codes: {str(e)}", exc_info=True)
+            return False

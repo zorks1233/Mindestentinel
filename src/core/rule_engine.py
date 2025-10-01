@@ -17,6 +17,9 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import serialization
+import hashlib
+import base64
 
 logger = logging.getLogger("mindestentinel.rule_engine")
 
@@ -37,6 +40,7 @@ class RuleEngine:
         self.rules_path = rules_path
         self.rules = []
         self.signature = None
+        self.public_key = None
         self.monitoring = False
         self.monitor_thread = None
         
@@ -85,6 +89,10 @@ class RuleEngine:
             if "signature" in rules_data:
                 self.signature = rules_data["signature"]
             
+            # Lade den öffentlichen Schlüssel, falls vorhanden
+            if "public_key" in rules_data:
+                self.public_key = rules_data["public_key"]
+            
             logger.info(f"{len(self.rules)} Regeln geladen aus {rules_path}")
             return self.rules
         except Exception as e:
@@ -111,9 +119,9 @@ class RuleEngine:
         rules_json = json.dumps(self.rules, sort_keys=True)
         
         # Erstelle einen Hash
-        digest = hashes.Hash(hashes.SHA256(), backend=default_backend())
-        digest.update(rules_json.encode('utf-8'))
-        return digest.finalize().hex()
+        sha256_hash = hashlib.sha256()
+        sha256_hash.update(rules_json.encode('utf-8'))
+        return sha256_hash.hexdigest()
     
     def verify_rules_signature(self) -> bool:
         """
@@ -393,3 +401,58 @@ class RuleEngine:
             rule_types[rule_type] = rule_types.get(rule_type, 0) + 1
         
         return rule_types
+    
+    def get_audit_log(self, start_time: float = 0, end_time: float = None) -> List[Dict[str, Any]]:
+        """
+        Gibt das Audit-Log für die Regel-Ausführungen zurück.
+        
+        Args:
+            start_time: Startzeit für das Log
+            end_time: Endzeit für das Log
+            
+        Returns:
+            List[Dict[str, Any]]: Die Log-Einträge
+        """
+        # In einer echten Implementierung würden Sie hier das Audit-Log abfragen
+        # Für das Beispiel geben wir nur ein Dummy-Log zurück
+        return [
+            {
+                "timestamp": time.time(),
+                "rule_id": "learning_goal_safety_001",
+                "action": "safety_check",
+                "result": "success",
+                "context": {"category": "learning_goals"}
+            }
+        ]
+    
+    def verify_rule_modification(self, rule_id: str, new_rule: Dict[str, Any], signature: str) -> bool:
+        """
+        Überprüft, ob eine Regeländerung autorisiert ist.
+        
+        Args:
+            rule_id: Die ID der Regel
+            new_rule: Die neue Regel
+            signature: Die Signatur der Änderung
+            
+        Returns:
+            bool: True, wenn die Änderung autorisiert ist, sonst False
+        """
+        # In einer echten Implementierung würden Sie hier die Signatur überprüfen
+        # Für das Beispiel geben wir nur True zurück
+        return True
+    
+    def generate_rule_modification_signature(self, rule_id: str, new_rule: Dict[str, Any]) -> str:
+        """
+        Generiert eine Signatur für eine Regeländerung.
+        
+        Args:
+            rule_id: Die ID der Regel
+            new_rule: Die neue Regel
+            
+        Returns:
+            str: Die Signatur der Änderung
+        """
+        # In einer echten Implementierung würden Sie hier die Signatur generieren
+        # Für das Beispiel geben wir nur einen Dummy-Hash zurück
+        rule_data = json.dumps({"id": rule_id, "rule": new_rule}, sort_keys=True)
+        return hashlib.sha256(rule_data.encode('utf-8')).hexdigest()

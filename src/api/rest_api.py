@@ -11,6 +11,8 @@ from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from typing import Dict, Any, Optional
 import time
+from src.core.token_utils import decode_token, JWTError
+from src.core.config import REQUIRE_2FA
 
 logger = logging.getLogger("mindestentinel.rest_api")
 
@@ -47,19 +49,23 @@ def create_app(ai_engine, model_manager, plugin_manager, auth_manager=None):
     # Dependency für die Authentifizierung (nur wenn AuthManager vorhanden)
     if auth_manager:
         def get_current_user(token: str = Depends(oauth2_scheme)):
-            # In einer echten Implementierung würden Sie den Token validieren
-            # Für das Beispiel verwenden wir einen Dummy-Check
-            if not auth_manager.verify_api_key(token):
+            # Verifiziere das Token
+            try:
+                payload = decode_token(token)
+                return {
+                    "username": payload.get("username"),
+                    "is_admin": payload.get("is_admin", False)
+                }
+            except JWTError as e:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Ungültiger API-Schlüssel",
+                    detail=str(e),
                     headers={"WWW-Authenticate": "Bearer"},
                 )
-            return {"username": "admin"}  # In einer echten Implementierung würde dies der aktuelle Benutzer sein
     else:
         # Dummy-Authentifizierung, wenn kein AuthManager vorhanden
         def get_current_user():
-            return {"username": "admin"}
+            return {"username": "admin", "is_admin": True}
     
     @app.get("/")
     async def root():
@@ -67,7 +73,8 @@ def create_app(ai_engine, model_manager, plugin_manager, auth_manager=None):
         return {
             "status": "running",
             "message": "Mindestentinel REST API ist aktiv",
-            "version": "1.0.0"
+            "version": "1.0.0",
+            "auth_required": auth_manager is not None
         }
     
     if auth_manager:
@@ -75,21 +82,46 @@ def create_app(ai_engine, model_manager, plugin_manager, auth_manager=None):
         async def login(form_data: OAuth2PasswordRequestForm = Depends()):
             """Endpoint für die Anmeldung und Token-Erstellung."""
             # Prüfe die Anmeldeinformationen
-            if not auth_manager.login(form_data.username, form_data.password, None):
+            result = auth_manager.login(
+                form_data.username, 
+                form_data.password,
+                totp_code=form_data.client_secret
+            )
+            
+            if not result.get("success"):
+                # Wenn 2FA erforderlich ist, gib eine spezielle Antwort zurück
+                if result.get("require_2fa"):
+                    raise HTTPException(
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                        detail="2FA erforderlich",
+                        headers={"WWW-Authenticate": "Bearer"},
+                    )
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Falscher Benutzername oder Passwort",
                     headers={"WWW-Authenticate": "Bearer"},
                 )
             
-            # Erstelle einen API-Schlüssel
-            api_key = auth_manager.generate_api_key(form_data.username)
-            
+            # Erstelle eine Antwort mit dem Token
             return {
-                "access_token": api_key,
-                "token_type": "bearer",
-                "username": form_data.username
+                "access_token": result["access_token"],
+                "token_type": result["token_type"],
+                "username": result["username"],
+                "is_admin": result["is_admin"],
+                "refresh_token": result.get("refresh_token")
             }
+        
+        @app.post("/token/refresh")
+        async def refresh_token(refresh_token: str):
+            """Endpoint zum Verlängern eines Tokens."""
+            result = auth_manager.refresh_token(refresh_token)
+            if "error" in result:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail=result["error"],
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
+            return result
     
     @app.get("/models")
     async def list_models(current_user: dict = Depends(get_current_user) if auth_manager else None):
@@ -108,7 +140,12 @@ def create_app(ai_engine, model_manager, plugin_manager, auth_manager=None):
                 status_code=404,
                 detail=f"Modell '{model_name}' nicht gefunden"
             )
-        return model
+        return {
+            "name": model_name,
+            "status": "loaded" if model else "not_loaded",
+            "description": model.description if model else "",
+            "size": model.size if model else 0
+        }
     
     @app.post("/query")
     async def query_model(
@@ -169,7 +206,8 @@ def create_app(ai_engine, model_manager, plugin_manager, auth_manager=None):
             "ai_engine": "active" if ai_engine.running else "inactive",
             "model_manager": len(model_manager.list_models()),
             "plugins": len(plugin_manager.list_plugins()),
-            "timestamp": time.time()
+            "timestamp": time.time(),
+            "auth_enabled": auth_manager is not None
         }
     
     @app.get("/autonomy/status")
@@ -187,6 +225,12 @@ def create_app(ai_engine, model_manager, plugin_manager, auth_manager=None):
     @app.post("/autonomy/start")
     async def start_autonomy(current_user: dict = Depends(get_current_user) if auth_manager else None):
         """Startet den autonomen Lernzyklus."""
+        if not current_user.get("is_admin", False):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Nur Administratoren können den autonomen Lernzyklus starten"
+            )
+            
         if hasattr(ai_engine, 'autonomous_loop') and ai_engine.autonomous_loop:
             ai_engine.autonomous_loop.start()
             return {"status": "success", "message": "Autonomer Lernzyklus gestartet"}
@@ -196,6 +240,12 @@ def create_app(ai_engine, model_manager, plugin_manager, auth_manager=None):
     @app.post("/autonomy/stop")
     async def stop_autonomy(current_user: dict = Depends(get_current_user) if auth_manager else None):
         """Stoppt den autonomen Lernzyklus."""
+        if not current_user.get("is_admin", False):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Nur Administratoren können den autonomen Lernzyklus stoppen"
+            )
+            
         if hasattr(ai_engine, 'autonomous_loop') and ai_engine.autonomous_loop:
             ai_engine.autonomous_loop.stop()
             return {"status": "success", "message": "Autonomer Lernzyklus gestoppt"}
@@ -230,6 +280,12 @@ def create_app(ai_engine, model_manager, plugin_manager, auth_manager=None):
         current_user: dict = Depends(get_current_user) if auth_manager else None
     ):
         """Fügt neues Wissen zur Wissensdatenbank hinzu."""
+        if not current_user.get("is_admin", False):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Nur Administratoren können Wissen hinzufügen"
+            )
+            
         entry_id = ai_engine.knowledge_base.store(category, data, metadata)
         if entry_id == -1:
             raise HTTPException(
@@ -242,5 +298,69 @@ def create_app(ai_engine, model_manager, plugin_manager, auth_manager=None):
             "entry_id": entry_id,
             "message": "Wissen erfolgreich gespeichert"
         }
+    
+    @app.get("/users/me")
+    async def get_current_user_info(current_user: dict = Depends(get_current_user) if auth_manager else None):
+        """Gibt Informationen über den aktuellen Benutzer zurück."""
+        if not auth_manager:
+            return {
+                "username": "admin",
+                "is_admin": True,
+                "2fa_enabled": False
+            }
+            
+        user = ai_engine.user_manager.get_user(current_user["username"])
+        if not user:
+            raise HTTPException(
+                status_code=404,
+                detail="Benutzer nicht gefunden"
+            )
+            
+        return {
+            "username": user["username"],
+            "is_admin": user["is_admin"],
+            "2fa_enabled": bool(user["totp_secret"]),
+            "created_at": user["created_at"],
+            "last_login": user["last_login"]
+        }
+    
+    @app.post("/2fa/setup")
+    async def setup_2fa(current_user: dict = Depends(get_current_user) if auth_manager else None):
+        """Richtet 2FA für den aktuellen Benutzer ein."""
+        if not auth_manager:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="2FA ist nicht aktiviert"
+            )
+            
+        result = auth_manager.setup_2fa(current_user["username"])
+        if "error" in result:
+            raise HTTPException(
+                status_code=500,
+                detail=result["error"]
+            )
+            
+        return {
+            "secret": result["secret"],
+            "qr_code": result["qr_code"],
+            "backup_codes": result["backup_codes"]
+        }
+    
+    @app.post("/2fa/disable")
+    async def disable_2fa(current_user: dict = Depends(get_current_user) if auth_manager else None):
+        """Deaktiviert 2FA für den aktuellen Benutzer."""
+        if not auth_manager:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="2FA ist nicht aktiviert"
+            )
+            
+        if not auth_manager.disable_2fa(current_user["username"]):
+            raise HTTPException(
+                status_code=500,
+                detail="Fehler bei der Deaktivierung von 2FA"
+            )
+            
+        return {"status": "success", "message": "2FA deaktiviert"}
     
     return app

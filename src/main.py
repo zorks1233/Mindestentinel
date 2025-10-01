@@ -58,7 +58,7 @@ from src.core.auth_manager import AuthManager
 from src.core.user_manager import UserManager
 from src.api.rest_api import create_app
 from src.api.websocket_api import create_ws_app
-from src.core.logging_config import setup_logging
+from src.config import setup_logging
 
 # Setze Logging vor allen anderen Initialisierungen
 setup_logging()
@@ -168,12 +168,24 @@ def build_components(rules_path: Optional[str] = None, enable_autonomy: bool = F
     try:
         # Versuche, den Admin-Benutzer zu erstellen
         if not user_manager.user_exists("admin"):
-            user_manager.create_user("admin", "admin123", is_admin=True)
+            from src.core.passwords import is_strong_password
+            
+            # Prüfe, ob das Passwort stark genug ist
+            password = "admin123"
+            if isinstance(is_strong_password(password), str):
+                _LOG.warning(f"Standard-Passwort ist nicht stark genug: {is_strong_password(password)}")
+                # Generiere ein sicheres Passwort
+                password = secrets.token_urlsafe(12)
+                _LOG.info(f"Generiertes sicheres Passwort für Admin: {password}")
+            
+            user_manager.create_user("admin", password, is_admin=True)
             _LOG.info("Standard-Admin-Benutzer 'admin' erstellt")
         else:
             _LOG.info("Standard-Admin-Benutzer 'admin' existiert bereits")
     except ValueError:
         _LOG.info("Standard-Admin-Benutzer 'admin' existiert bereits")
+    except Exception as e:
+        _LOG.error(f"Fehler beim Erstellen des Admin-Benutzers: {str(e)}", exc_info=True)
     
     if not hasattr(brain, 'model_orchestrator') or brain.model_orchestrator is None:
         _LOG.info("model_orchestrator nicht in AIBrain gefunden - initialisiere neu")
