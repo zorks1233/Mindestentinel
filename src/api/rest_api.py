@@ -11,8 +11,7 @@ from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from typing import Dict, Any, Optional
 import time
-from src.core.token_utils import decode_token, JWTError
-from src.core.config import REQUIRE_2FA
+from src.core.token_utils import create_token, decode_token, JWTError
 
 logger = logging.getLogger("mindestentinel.rest_api")
 
@@ -51,7 +50,10 @@ def create_app(ai_engine, model_manager, plugin_manager, auth_manager=None):
         def get_current_user(token: str = Depends(oauth2_scheme)):
             # Verifiziere das Token
             try:
-                payload = decode_token(token)
+                # Importiere die Konfigurationswerte direkt hier
+                from src.core.config import MIND_JWT_SECRET, MIND_JWT_ALG
+                
+                payload = decode_token(token, MIND_JWT_SECRET, MIND_JWT_ALG)
                 return {
                     "username": payload.get("username"),
                     "is_admin": payload.get("is_admin", False)
@@ -107,21 +109,8 @@ def create_app(ai_engine, model_manager, plugin_manager, auth_manager=None):
                 "access_token": result["access_token"],
                 "token_type": result["token_type"],
                 "username": result["username"],
-                "is_admin": result["is_admin"],
-                "refresh_token": result.get("refresh_token")
+                "is_admin": result["is_admin"]
             }
-        
-        @app.post("/token/refresh")
-        async def refresh_token(refresh_token: str):
-            """Endpoint zum Verlängern eines Tokens."""
-            result = auth_manager.refresh_token(refresh_token)
-            if "error" in result:
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail=result["error"],
-                    headers={"WWW-Authenticate": "Bearer"},
-                )
-            return result
     
     @app.get("/models")
     async def list_models(current_user: dict = Depends(get_current_user) if auth_manager else None):
@@ -298,69 +287,5 @@ def create_app(ai_engine, model_manager, plugin_manager, auth_manager=None):
             "entry_id": entry_id,
             "message": "Wissen erfolgreich gespeichert"
         }
-    
-    @app.get("/users/me")
-    async def get_current_user_info(current_user: dict = Depends(get_current_user) if auth_manager else None):
-        """Gibt Informationen über den aktuellen Benutzer zurück."""
-        if not auth_manager:
-            return {
-                "username": "admin",
-                "is_admin": True,
-                "2fa_enabled": False
-            }
-            
-        user = ai_engine.user_manager.get_user(current_user["username"])
-        if not user:
-            raise HTTPException(
-                status_code=404,
-                detail="Benutzer nicht gefunden"
-            )
-            
-        return {
-            "username": user["username"],
-            "is_admin": user["is_admin"],
-            "2fa_enabled": bool(user["totp_secret"]),
-            "created_at": user["created_at"],
-            "last_login": user["last_login"]
-        }
-    
-    @app.post("/2fa/setup")
-    async def setup_2fa(current_user: dict = Depends(get_current_user) if auth_manager else None):
-        """Richtet 2FA für den aktuellen Benutzer ein."""
-        if not auth_manager:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="2FA ist nicht aktiviert"
-            )
-            
-        result = auth_manager.setup_2fa(current_user["username"])
-        if "error" in result:
-            raise HTTPException(
-                status_code=500,
-                detail=result["error"]
-            )
-            
-        return {
-            "secret": result["secret"],
-            "qr_code": result["qr_code"],
-            "backup_codes": result["backup_codes"]
-        }
-    
-    @app.post("/2fa/disable")
-    async def disable_2fa(current_user: dict = Depends(get_current_user) if auth_manager else None):
-        """Deaktiviert 2FA für den aktuellen Benutzer."""
-        if not auth_manager:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="2FA ist nicht aktiviert"
-            )
-            
-        if not auth_manager.disable_2fa(current_user["username"]):
-            raise HTTPException(
-                status_code=500,
-                detail="Fehler bei der Deaktivierung von 2FA"
-            )
-            
-        return {"status": "success", "message": "2FA deaktiviert"}
     
     return app

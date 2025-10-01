@@ -1,4 +1,4 @@
-# src/config.py
+# src/core/config.py
 """
 config.py - Konfigurationsmanagement für Mindestentinel
 
@@ -47,7 +47,7 @@ API_HOST = os.getenv("API_HOST", "0.0.0.0")
 API_PORT = int(os.getenv("API_PORT", "8000"))
 
 # JWT-Konfiguration
-MIND_JWT_SECRET = os.getenv("MIND_JWT_SECRET")
+MIND_JWT_SECRET = os.getenv("MIND_JWT_SECRET", "Ihr_geheimer_Schlüssel_hier")
 MIND_JWT_ALG = os.getenv("MIND_JWT_ALG", "HS256")
 MIND_JWT_EXP = int(os.getenv("MIND_JWT_EXP", "3600"))  # 1 Stunde
 

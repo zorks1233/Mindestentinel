@@ -1,5 +1,11 @@
 # core package 
 # src/core/__init__.py
+
+# src/core/__init__.py
+"""
+Dies ist eine leere Datei, die benötigt wird, damit Python das Verzeichnis 'core' als Package erkennt.
+Ohne diese Datei funktionieren die Importe nicht.
+"""
 """
 src.core package initializer for Mindestentinel.
 Exports important classes for convenience imports such as:
