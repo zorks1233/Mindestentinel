@@ -1,0 +1,13 @@
+(.venv) PS C:\Users\bkrie\Desktop\Mindestentinel\Mindestentinel - Alpha-Projekt build0015A> python admin_console\commands\manage_users.py create --username benni --password "Bibimax1984@" --admin
+2025-08-23 13:22:05,863 [INFO] create_user: created user 'benni' (id=1)
+Created user: benni
+Backup codes (show once):
+ - cd2991a07a86
+ - b2dca21fbc4e
+ - 147d9848eda2
+ - 5b5f3a57b56d
+ - 260f582f498c
+ - 47427923f414
+ - df516cf959fe
+ - bfd33f7b1585
+(.venv) PS C:\Users\bkrie\Desktop\Mindestentinel\Mindestentinel - Alpha-Projekt build0015A>

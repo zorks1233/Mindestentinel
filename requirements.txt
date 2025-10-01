@@ -26,3 +26,5 @@ peft
 bitsandbytes
 passlib
 bcrypt==4.2.1
+pyotp
+python-dotenv
