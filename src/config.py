@@ -1,80 +1,77 @@
-# src/core/config.py
+# src/config.py
 """
 config.py - Konfigurationsmanagement für Mindestentinel
 
-Diese Datei lädt Konfigurationswerte aus Umgebungsvariablen oder einer .env-Datei.
+Diese Datei verwaltet die Konfiguration des Systems.
 """
 
-from __future__ import annotations
 import os
-from pathlib import Path
 import logging
-import time
+from datetime import datetime
+from pathlib import Path
 
 logger = logging.getLogger("mindestentinel.config")
 
-def setup_logging():
-    """Richtet das Logging basierend auf der Konfiguration ein."""
-    log_level = logging.INFO
-    log_dir = Path("logs")
+def setup_logging(log_dir: str = "logs") -> None:
+    """
+    Konfiguriert das Logging für das System
     
-    # Erstelle das Log-Verzeichnis, falls nicht vorhanden
-    log_dir.mkdir(parents=True, exist_ok=True)
+    Args:
+        log_dir: Verzeichnis für Log-Dateien
+    """
+    # Erstelle Log-Verzeichnis, falls nicht vorhanden
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir)
     
-    # Konfiguriere das Root-Logging
+    # Bestimme den Namen der Log-Datei basierend auf dem aktuellen Datum
+    log_file = os.path.join(log_dir, f"mindestentinel_{datetime.now().strftime('%Y%m%d')}.log")
+    
+    # Konfiguriere das Logging
     logging.basicConfig(
-        level=log_level,
+        level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
         handlers=[
-            logging.FileHandler(log_dir / f"mindestentinel_{time.strftime('%Y%m%d')}.log"),
+            logging.FileHandler(log_file),
             logging.StreamHandler()
         ]
     )
     
-    logger.info("Logging konfiguriert. Logs werden gespeichert in: " + str(log_dir))
+    # Setze das Root-Logger-Level
+    logging.getLogger().setLevel(logging.INFO)
     
-    # Setze das Logging-Level für spezifische Module
-    logging.getLogger("sqlalchemy").setLevel(logging.WARNING)
-    logging.getLogger("urllib3").setLevel(logging.WARNING)
-    logging.getLogger("asyncio").setLevel(logging.WARNING)
+    logger.info(f"Logging konfiguriert. Logs werden gespeichert in: {log_dir}")
 
-# Initialisiere das Logging
-setup_logging()
-
-# Allgemeine Konfiguration
-DEBUG = os.getenv("DEBUG", "false").lower() == "true"
-API_HOST = os.getenv("API_HOST", "0.0.0.0")
-API_PORT = int(os.getenv("API_PORT", "8000"))
-
-# JWT-Konfiguration
-MIND_JWT_SECRET = os.getenv("MIND_JWT_SECRET", "Ihr_geheimer_Schlüssel_hier")
-MIND_JWT_ALG = os.getenv("MIND_JWT_ALG", "HS256")
-MIND_JWT_EXP = int(os.getenv("MIND_JWT_EXP", "3600"))  # 1 Stunde
-
-# Authentifizierungs-Konfiguration
-REQUIRE_2FA = os.getenv("REQUIRE_2FA", "false").lower() == "true"
-MAX_LOGIN_ATTEMPTS = int(os.getenv("MAX_LOGIN_ATTEMPTS", "5"))
-LOCKOUT_TIME = int(os.getenv("LOCKOUT_TIME", "300"))  # 5 Minuten
-
-# Autonomie-Konfiguration
-ENABLE_AUTONOMY = os.getenv("ENABLE_AUTONOMY", "false").lower() == "true"
-LEARNING_INTERVAL = int(os.getenv("LEARNING_INTERVAL", "1800"))  # 30 Minuten
-MAX_RESOURCE_USAGE = float(os.getenv("MAX_RESOURCE_USAGE", "0.85"))
-
-def get_config() -> dict:
-    """
-    Gibt eine Zusammenfassung der aktuellen Konfiguration zurück.
+def load_config():
+    """Lädt die Konfiguration aus Umgebungsvariablen und .env-Datei"""
+    # Lade .env-Datei, falls vorhanden
+    env_path = Path(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) / '.env'
+    if env_path.exists():
+        try:
+            from dotenv import load_dotenv
+            load_dotenv(dotenv_path=env_path)
+            logger.info(f"Konfiguration aus .env-Datei geladen: {env_path}")
+        except ImportError:
+            logger.warning("python-dotenv nicht installiert. Kann .env-Datei nicht laden.")
     
-    Returns:
-        dict: Die Konfigurationswerte
-    """
+    # Logging-Konfiguration
+    log_dir = os.getenv("LOG_DIR", "logs")
+    
+    # API-Konfiguration
+    api_host = os.getenv("API_HOST", "0.0.0.0")
+    api_port = int(os.getenv("API_PORT", "8000"))
+    
+    # JWT-Konfiguration
+    jwt_secret = os.getenv("MIND_JWT_SECRET")
+    if not jwt_secret:
+        logger.warning("MIND_JWT_SECRET nicht gesetzt. Verwende generierten Schlüssel (NICHT FÜR PRODUKTION)")
+        jwt_secret = os.urandom(32).hex()
+        os.environ["MIND_JWT_SECRET"] = jwt_secret
+    else:
+        logger.info("MIND_JWT_SECRET aus Umgebungsvariablen geladen")
+    
     return {
-        "DEBUG": DEBUG,
-        "API_HOST": API_HOST,
-        "API_PORT": API_PORT,
-        "MIND_JWT_ALG": MIND_JWT_ALG,
-        "MIND_JWT_EXP": MIND_JWT_EXP,
-        "REQUIRE_2FA": REQUIRE_2FA,
-        "ENABLE_AUTONOMY": ENABLE_AUTONOMY,
-        "LEARNING_INTERVAL": LEARNING_INTERVAL
+        "log_dir": log_dir,
+        "api_host": api_host,
+        "api_port": api_port,
+        "jwt_secret": jwt_secret
     }

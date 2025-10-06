@@ -1,4 +1,3 @@
-# src/main.py
 """
 Einstiegspunkt für Mindestentinel.
 - Startet AIBrain, ModelManager, PluginManager
@@ -25,15 +24,8 @@ import uvicorn
 import threading
 import time
 import sys
+import secrets
 from typing import Optional, Tuple, List
-
-# Setze PYTHONPATH automatisch auf das Projekt-Root, falls nicht gesetzt
-if "PYTHONPATH" not in os.environ:
-    # Bestimme das Projekt-Root (angenommen, dass src/ im Projekt-Root liegt)
-    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    os.environ["PYTHONPATH"] = project_root
-    sys.path.insert(0, project_root)
-    logging.info(f"PYTHONPATH automatisch gesetzt auf: {project_root}")
 
 # Import des AutonomousLoop Moduls
 try:
@@ -64,51 +56,26 @@ from src.config import setup_logging
 setup_logging()
 _LOG = logging.getLogger("mindestentinel.main")
 
-def handle_admin_commands():
-    """Verarbeitet Admin-Befehle direkt."""
+def is_admin_command():
+    """Überprüft, ob es ein Admin-Befehl ist."""
     # Prüfe, ob es ein Admin-Befehl ist
     if len(sys.argv) > 1 and sys.argv[1] == "admin":
-        # Entferne das erste Argument (main.py)
-        script_name = sys.argv[0]
-        args = sys.argv[2:]  # Überspringe "admin"
-        
-        # Prüfe, ob es ein Benutzer-Befehl ist
-        if len(args) > 0 and args[0] == "users":
-            # Entferne "users"
-            args = args[1:]
-            
-            # Bestimme das Skript-Verzeichnis
-            script_dir = os.path.dirname(os.path.abspath(__file__))
-            project_root = os.path.dirname(script_dir)
-            
-            # Stelle sicher, dass PYTHONPATH gesetzt ist
-            if "PYTHONPATH" not in os.environ:
-                os.environ["PYTHONPATH"] = project_root
-                sys.path.insert(0, project_root)
-            
-            # Importiere das Benutzermanagement-Skript
-            try:
-                from admin_console.commands.manage_users import main as users_main
-                
-                # Speichere das aktuelle sys.argv
-                original_argv = sys.argv
-                
-                try:
-                    # Setze sys.argv auf das Skript-Name + args
-                    sys.argv = [script_name] + args
-                    
-                    # Rufe main ohne Argumente auf (da sie keine Argumente erwartet)
-                    users_main()
-                    
-                    return True
-                finally:
-                    # Stelle das ursprüngliche sys.argv wieder her
-                    sys.argv = original_argv
-            except ImportError as e:
-                _LOG.error(f"Fehler beim Importieren von manage_users.py: {str(e)}")
-                return False
-    
+        _LOG.info("Admin-Befehl erkannt. Verarbeite...")
+        return True
     return False
+
+def handle_user_admin_commands():
+    """Verarbeitet Admin-Benutzerbefehle durch Weiterleitung an UserManager."""
+    if len(sys.argv) <= 2:
+        _LOG.error("Kein Unterbefehl für Admin-Befehl angegeben")
+        print("Bitte geben Sie einen Unterbefehl an (create, list, delete, update-password)")
+        return False
+    
+    # Importiere UserManager hier, um Import-Zyklen zu vermeiden
+    from src.core.user_manager import handle_admin_commands
+    
+    # Leite die Argumente weiter (ohne 'admin')
+    return handle_admin_commands(sys.argv[2:])
 
 def get_absolute_db_path():
     """Gibt den absoluten Pfad zur Wissensdatenbank zurück."""
@@ -289,7 +256,12 @@ def parse_args(argv=None):
 def main():
     """Hauptfunktion des Programms."""
     # Prüfe, ob es ein Admin-Befehl ist
-    if handle_admin_commands():
+    if is_admin_command():
+        # Weiterleitung an UserManager
+        from src.core.user_manager import handle_admin_commands
+        success = handle_admin_commands(sys.argv[2:])
+        if not success:
+            sys.exit(1)
         return
     
     args = parse_args()
