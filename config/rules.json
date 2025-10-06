@@ -1,1 +1,16 @@
-[]
+[
+  {
+    "name": "basic_security_rule",
+    "condition": "user_input contains 'security'",
+    "action": "verify_user_credentials",
+    "priority": 1,
+    "enabled": true
+  },
+  {
+    "name": "response_quality_rule",
+    "condition": "response_confidence < 0.7",
+    "action": "request_more_information",
+    "priority": 2,
+    "enabled": true
+  }
+]
