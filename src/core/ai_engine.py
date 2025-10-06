@@ -1,192 +1,141 @@
 # src/core/ai_engine.py
 """
-ai_engine.py - Zentrale KI-Logik für Mindestentinel
+ai_engine.py - AIBrain für Mindestentinel
 
-Diese Datei implementiert die zentrale KI-Logik für das System.
-Es koordiniert alle Komponenten und verwaltet den autonomen Lernzyklus.
+Diese Datei implementiert das AIBrain, das die zentrale KI-Logik enthält.
 """
 
 import logging
-import time
-from typing import Dict, Any, Optional, List, Tuple
+import os
+from datetime import datetime
+from typing import Dict, List, Any, Optional
+
+from src.core.knowledge_base import KnowledgeBase
+from src.core.model_manager import ModelManager
+from src.core.rule_engine import RuleEngine
+from src.core.protection_module import ProtectionModule
+from src.core.system_monitor import SystemMonitor
+from src.core.multi_model_orchestrator import MultiModelOrchestrator
+from src.core.knowledge_transfer import KnowledgeTransfer
+from src.core.model_trainer import ModelTrainer
+from src.core.autonomous_loop import AutonomousLoop
 
 logger = logging.getLogger("mindestentinel.ai_engine")
 
 class AIBrain:
-    """
-    Die zentrale KI-Logik für das System.
-    
-    Koordiniert alle Komponenten und verwaltet den autonomen Lernzyklus.
-    """
+    """Das AIBrain - zentrale KI-Logik für Mindestentinel"""
     
     def __init__(self, rules_path: Optional[str] = None):
-        """
-        Initialisiert das AIBrain.
+        """Initialisiert das AIBrain
         
         Args:
-            rules_path: Pfad zur Regelkonfiguration
+            rules_path: Pfad zur Regelkonfigurationsdatei (wird ignoriert, da RuleEngine bereits initialisiert)
         """
-        self.start_time = time.time()
-        self.active = False
-        self.rules_path = rules_path
+        logger.info("AIBrain initialisiert.")
+        
+        # Hinweis: rules_path wird hier ignoriert, da die RuleEngine bereits in main.py initialisiert wird
+        if rules_path:
+            logger.warning("rules_path Parameter wird ignoriert - RuleEngine wird bereits separat initialisiert")
+        
+        # Komponenten
         self.knowledge_base = None
         self.model_manager = None
         self.model_orchestrator = None
         self.rule_engine = None
         self.protection_module = None
         self.system_monitor = None
-        self.user_manager = None
-        logger.info("AIBrain initialisiert.")
+        self.knowledge_transfer = None
+        self.model_trainer = None
+        self.autonomous_loop = None
     
-    def inject_model_manager(self, model_manager):
-        """Injiziert den ModelManager."""
+    def inject_model_manager(self, model_manager: ModelManager):
+        """Injiziert den ModelManager"""
         self.model_manager = model_manager
-        logger.debug("ModelManager injiziert.")
+        logger.info("ModelManager injiziert.")
     
     def start(self):
-        """Startet das AIBrain."""
-        self.active = True
+        """Startet das AIBrain (Hintergrundprozesse etc.)"""
         logger.info("AIBrain gestartet.")
     
     def stop(self):
-        """Stoppt das AIBrain."""
-        self.active = False
+        """Stoppt das AIBrain"""
         logger.info("AIBrain gestoppt.")
     
-    def query(self, prompt: str, models: Optional[List[str]] = None) -> Dict[str, Any]:
+    def query(self, prompt: str, max_tokens: int = 512) -> Dict[str, str]:
         """
-        Verarbeitet eine Anfrage an das KI-System.
+        Verarbeitet eine Benutzeranfrage
         
         Args:
-            prompt: Der Prompt
-            models: Optionale Liste der Modelle
+            prompt: Die Benutzeranfrage
+            max_tokens: Maximale Anzahl der Tokens für die Antwort
             
         Returns:
-            Dict[str, Any]: Die Antworten der Modelle
+            Dict[str, str]: Antworten von allen Modellen
         """
-        if not self.active:
-            logger.warning("AIBrain ist nicht aktiv. Kann keine Anfrage verarbeiten.")
-            return {}
+        logger.info(f"Verarbeite Abfrage: {prompt}")
         
-        if not self.model_orchestrator:
-            logger.error("ModelOrchestrator nicht initialisiert. Kann keine Anfrage verarbeiten.")
-            return {}
-        
-        # Frage die Modelle
-        responses = self.model_orchestrator.query(prompt, models=models)
-        
-        # Speichere das Wissen
-        if self.knowledge_base:
-            try:
-                self.knowledge_base.store("query", {
-                    "prompt": prompt,
-                    "models": models,
-                    "responses": responses,
-                    "timestamp": time.time()
-                })
-            except Exception as e:
-                logger.error(f"Fehler beim Speichern der Anfrage: {str(e)}", exc_info=True)
-        
-        return responses
+        try:
+            # Hole aktive Modelle - KORREKTUR: get_student_models() statt get_active_models()
+            models = self.model_orchestrator.get_student_models()
+            
+            # Frage jedes Modell
+            responses = {}
+            for model_name in models:
+                try:
+                    # Verwende die korrekte Query-Methode
+                    response = self.model_orchestrator.query(
+                        model_name,
+                        prompt,
+                        max_tokens=max_tokens
+                    )
+                    responses[model_name] = response
+                except Exception as e:
+                    logger.error(f"Fehler bei der Abfrage von {model_name}: {str(e)}", exc_info=True)
+                    responses[model_name] = "Entschuldigung, ich konnte diese Anfrage nicht verarbeiten."
+            
+            return responses
+        except Exception as e:
+            logger.error(f"Kritischer Fehler bei der Abfrage: {str(e)}", exc_info=True)
+            raise
     
-    def learn_from_experience(self, goal_id: str, examples: List[Dict[str, Any]]):
+    def learn_from_interaction(self, prompt: str, response: str, feedback: Optional[Dict] = None):
         """
-        Lernt aus Erfahrungen.
+        Lernt aus einer Benutzerinteraktion
         
         Args:
-            goal_id: Die ID des Lernziels
-            examples: Die Wissensbeispiele
+            prompt: Die Benutzeranfrage
+            response: Die Systemantwort
+            feedback: Optionales Feedback des Benutzers
         """
-        if not self.active:
-            logger.warning("AIBrain ist nicht aktiv. Kann nicht lernen.")
-            return
-        
-        if not self.model_manager or not self.model_orchestrator:
-            logger.error("ModelManager oder ModelOrchestrator nicht initialisiert. Kann nicht lernen.")
-            return
-        
-        # Hier würde der eigentliche Lernprozess stattfinden
-        # Für diese vereinfachte Version geben wir nur eine Logmeldung aus
-        logger.info(f"Lerne aus {len(examples)} Beispielen für Ziel {goal_id}...")
-        
-        # In einer echten Implementierung würden Sie hier:
-        # 1. Knowledge Distillation durchführen
-        # 2. Ein neues Modell trainieren
-        # 3. Das neue Modell registrieren
-        
-        # Für das Beispiel geben wir nur eine Erfolgsmeldung aus
-        logger.info(f"Lernprozess für Ziel {goal_id} abgeschlossen.")
+        try:
+            # Speichere die Interaktion im Wissensspeicher
+            self.knowledge_base.add_knowledge(
+                context="user_interaction",
+                content=f"Prompt: {prompt}\nResponse: {response}",
+                source="user_interaction",
+                confidence=feedback.get("confidence", 0.8) if feedback else 0.8
+            )
+            
+            logger.info("Gelernt aus Benutzerinteraktion")
+        except Exception as e:
+            logger.error(f"Fehler beim Lernen aus Interaktion: {str(e)}", exc_info=True)
     
     def get_system_status(self) -> Dict[str, Any]:
-        """
-        Gibt den Systemstatus zurück.
-        
-        Returns:
-            Dict[str, Any]: Der Systemstatus
-        """
-        return {
-            "active": self.active,
-            "uptime": time.time() - self.start_time,
-            "components": {
-                "knowledge_base": self.knowledge_base is not None,
-                "model_manager": self.model_manager is not None,
-                "model_orchestrator": self.model_orchestrator is not None,
-                "rule_engine": self.rule_engine is not None,
-                "protection_module": self.protection_module is not None,
-                "system_monitor": self.system_monitor is not None,
-                "user_manager": self.user_manager is not None
-            },
-            "timestamp": time.time()
-        }
-    
-    def get_knowledge(self, category: str, limit: int = 100) -> List[Dict[str, Any]]:
-        """
-        Gibt Wissen aus der Wissensdatenbank zurück.
-        
-        Args:
-            category: Die Kategorie
-            limit: Die maximale Anzahl der Ergebnisse
-            
-        Returns:
-            List[Dict[str, Any]]: Das Wissen
-        """
-        if not self.knowledge_base:
-            logger.error("Wissensdatenbank nicht initialisiert.")
-            return []
-        
-        # Hole das Wissen
-        return self.knowledge_base.select(
-            "SELECT * FROM knowledge WHERE category = ? ORDER BY timestamp DESC LIMIT ?",
-            (category, limit),
-            decrypt_column=2  # encrypted_data ist Spalte 2
-        )
-    
-    def get_system_statistics(self) -> Dict[str, Any]:
-        """
-        Gibt Systemstatistiken zurück.
-        
-        Returns:
-            Dict[str, Any]: Die Systemstatistiken
-        """
-        stats = {
-            "uptime": time.time() - self.start_time,
-            "knowledge_entries": 0,
-            "model_count": 0,
-            "user_count": 0,
-            "active_components": 0
-        }
-        
-        # Zähle die aktiven Komponenten
-        active_components = 0
-        if self.knowledge_base:
-            active_components += 1
-            stats["knowledge_entries"] = self.knowledge_base.get_statistics()["total_entries"]
-        if self.model_manager:
-            active_components += 1
-            stats["model_count"] = len(self.model_manager.list_models())
-        if self.user_manager:
-            active_components += 1
-            stats["user_count"] = len(self.user_manager.list_users())
-        
-        stats["active_components"] = active_components
-        return stats
+        """Gibt den aktuellen Systemstatus zurück"""
+        try:
+            status = {
+                "timestamp": datetime.utcnow().isoformat(),
+                "status": "running",
+                "model_count": len(self.model_manager.list_models()) if self.model_manager else 0,
+                "active_models": self.model_orchestrator.get_student_models() if self.model_orchestrator else [],
+                "knowledge_entries": len(self.knowledge_base.get_knowledge()) if self.knowledge_base else 0,
+                "system_health": self.system_monitor.get_health_status() if self.system_monitor else "unknown"
+            }
+            return status
+        except Exception as e:
+            logger.error(f"Fehler beim Abrufen des Systemstatus: {str(e)}", exc_info=True)
+            return {
+                "timestamp": datetime.utcnow().isoformat(),
+                "status": "error",
+                "error": str(e)
+            }

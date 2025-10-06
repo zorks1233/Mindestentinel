@@ -1,267 +1,322 @@
 # src/core/auth_manager.py
 """
-auth_manager.py - Authentifizierungs-Manager für Mindestentinel
+AuthManager - Verwaltet die Authentifizierung und Autorisierung für Mindestentinel
 
-Diese Datei implementiert die Authentifizierung für das System.
-Es ermöglicht die Benutzerauthentifizierung und Token-Verwaltung.
+Diese Klasse implementiert:
+- JWT-Token-Erstellung und -Verifizierung
+- Passwort-Hashing mit bcrypt
+- Benutzer-Authentifizierung
+- Rollenbasierte Zugriffskontrolle
 """
 
-import logging
 import os
-import time
-import hashlib
+import logging
+import bcrypt
+from datetime import datetime, timedelta
+from typing import Dict, Optional, Tuple
 import secrets
-from typing import Dict, Any, Optional
-import pyotp
-from src.core.token_utils import create_token, decode_token, JWTError
+from fastapi import HTTPException, Depends, Request
+from fastapi.security import OAuth2PasswordBearer
 
-logger = logging.getLogger("mindestentinel.auth_manager")
+# Korrigierter JWT-Import
+try:
+    import jwt
+    from jwt.exceptions import PyJWTError, ExpiredSignatureError
+except ImportError:
+    # Fallback für ältere PyJWT-Versionen
+    import jwt
+    PyJWTError = jwt.PyJWTError if hasattr(jwt, 'PyJWTError') else Exception
+    ExpiredSignatureError = jwt.ExpiredSignatureError if hasattr(jwt, 'ExpiredSignatureError') else Exception
+
+logger = logging.getLogger("mindestentinel.auth")
+
+# Konfiguration
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 30
+REFRESH_TOKEN_EXPIRE_DAYS = 7
+
+# Sicherer Schlüssel aus Umgebungsvariable oder generieren (nur für Entwicklung)
+SECRET_KEY = os.getenv("MIND_JWT_SECRET")
+if not SECRET_KEY:
+    logger.warning("MIND_JWT_SECRET nicht gesetzt. Verwende generierten Schlüssel (NICHT FÜR PRODUKTION)")
+    SECRET_KEY = secrets.token_urlsafe(32)
+    logger.info(f"Generierter SECRET_KEY: {SECRET_KEY[:10]}...")
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 class AuthManager:
-    """
-    Verwaltet die Authentifizierung für das System.
+    """Verwaltet Authentifizierung und Autorisierung"""
     
-    Lädt, speichert und verwaltet Benutzer und ihre Authentifizierungsdaten.
-    """
-    
-    def __init__(self, knowledge_base, user_manager=None):
-        """
-        Initialisiert den AuthManager.
+    def __init__(self, knowledge_base, user_manager):
+        """Initialisiert den AuthManager
         
         Args:
             knowledge_base: Die Wissensdatenbank
-            user_manager: Der UserManager (optional)
+            user_manager: UserManager-Instanz
         """
         self.kb = knowledge_base
         self.user_manager = user_manager
-        
-        # Initialisiere die API-Schlüssel-Tabelle
-        self._initialize_api_keys_table()
-        
-        logger.info("AuthManager initialisiert.")
+        logger.info("AuthManager initialisiert")
     
-    def _initialize_api_keys_table(self):
-        """Initialisiert die API-Schlüssel-Tabelle in der Wissensdatenbank."""
-        try:
-            # Erstelle die API-Schlüssel-Tabelle, falls nicht vorhanden
-            self.kb.execute("""
-                CREATE TABLE IF NOT EXISTS api_keys (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    user_id INTEGER NOT NULL,
-                    api_key TEXT UNIQUE NOT NULL,
-                    created_at REAL NOT NULL,
-                    last_used REAL,
-                    expires_at REAL,
-                    description TEXT,
-                    FOREIGN KEY(user_id) REFERENCES users(id)
-                )
-            """)
-            logger.debug("API-Schlüssel-Tabelle initialisiert.")
-        except Exception as e:
-            logger.error(f"Fehler bei der Initialisierung der API-Schlüssel-Tabelle: {str(e)}", exc_info=True)
-    
-    def login(self, username: str, password: str, client_secret: Optional[str] = None, totp_code: Optional[str] = None) -> Dict[str, Any]:
-        """
-        Authentifiziert einen Benutzer.
+    def create_access_token(self, username: str, is_admin: bool = False) -> str:
+        """Erstellt ein JWT-Zugriffstoken
         
         Args:
-            username: Der Benutzername
-            password: Das Passwort
-            client_secret: Das Client-Geheimnis (optional)
-            totp_code: Der TOTP-Code (optional)
+            username: Benutzername
+            is_admin: Gibt an, ob der Benutzer Administratorrechte hat
             
         Returns:
-            Dict[str, Any]: Ein Dictionary mit dem Token und Benutzerinformationen
+            str: JWT-Zugriffstoken
         """
-        # Hole den Benutzer
-        user = self.user_manager.get_user(username)
-        if not user:
-            logger.warning(f"Benutzer '{username}' nicht gefunden")
-            return {"success": False, "message": "Benutzername oder Passwort falsch"}
-        
-        # Prüfe, ob der Benutzer aktiv ist
-        if not user["enabled"]:
-            logger.warning(f"Benutzer '{username}' ist deaktiviert")
-            return {"success": False, "message": "Benutzerkonto ist deaktiviert"}
-        
-        # Verifiziere das Passwort
-        from src.core.passwords import verify_password
-        if not verify_password(password, user["password_hash"]):
-            logger.warning(f"Falsches Passwort für Benutzer '{username}'")
-            return {"success": False, "message": "Benutzername oder Passwort falsch"}
-        
-        # Prüfe 2FA, falls erforderlich
-        if user["totp_secret"]:
-            if not totp_code:
-                return {"success": False, "require_2fa": True, "message": "2FA erforderlich"}
-            
-            # Verifiziere den TOTP-Code
-            totp = pyotp.TOTP(user["totp_secret"])
-            if not totp.verify(totp_code):
-                # Prüfe, ob es ein Backup-Code ist
-                if not self.user_manager.verify_2fa_backup_code(username, totp_code):
-                    return {"success": False, "message": "Ungültiger 2FA-Code"}
-        
-        # Aktualisiere den letzten Login-Zeitpunkt
-        self.user_manager.update_user(username, {"last_login": time.time()})
-        
-        # Erstelle ein Token
-        payload = {
-            "sub": username,
-            "username": username,
-            "is_admin": user["is_admin"]
-        }
-        
         try:
-            # Erstelle ein Token mit Refresh-Token
-            from src.config import MIND_JWT_SECRET, MIND_JWT_ALG, MIND_JWT_EXP
-            access_token = create_token(
-                payload, 
-                MIND_JWT_SECRET, 
-                MIND_JWT_ALG,
-                MIND_JWT_EXP
-            )
+            expires_delta = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+            expire = datetime.utcnow() + expires_delta
             
-            tokens = {
-                "access_token": access_token,
-                "token_type": "bearer",
-                "username": username,
-                "is_admin": user["is_admin"]
+            to_encode = {
+                "sub": username,
+                "exp": expire,
+                "is_admin": is_admin,
+                "token_type": "access"
             }
             
-            logger.info(f"Benutzer '{username}' erfolgreich authentifiziert")
-            return {"success": True, **tokens}
-        except JWTError as e:
-            logger.error(f"Fehler bei der Token-Erstellung: {str(e)}")
-            return {"success": False, "message": "Token-Erstellung fehlgeschlagen"}
+            encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+            logger.info(f"Zugriffstoken erstellt für {username} (Admin: {is_admin})")
+            return encoded_jwt
+        except Exception as e:
+            logger.error(f"Fehler bei der Token-Erstellung: {str(e)}", exc_info=True)
+            raise HTTPException(
+                status_code=500,
+                detail="Token-Erstellung fehlgeschlagen"
+            )
     
-    def verify_api_key(self, api_key: str) -> bool:
-        """
-        Verifiziert einen API-Schlüssel.
+    def create_refresh_token(self, username: str) -> str:
+        """Erstellt ein JWT-Refresh-Token
         
         Args:
-            api_key: Der API-Schlüssel
+            username: Benutzername
             
         Returns:
-            bool: True, wenn der API-Schlüssel gültig ist, sonst False
+            str: JWT-Refresh-Token
         """
         try:
-            result = self.kb.select(
-                "SELECT COUNT(*) FROM api_keys WHERE api_key = ?",
-                (api_key,)
-            )
-            return len(result) > 0 and result[0][0] > 0
+            expires_delta = timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+            expire = datetime.utcnow() + expires_delta
+            
+            to_encode = {
+                "sub": username,
+                "exp": expire,
+                "token_type": "refresh"
+            }
+            
+            encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+            return encoded_jwt
         except Exception as e:
-            logger.error(f"Fehler bei der API-Schlüssel-Verifikation: {str(e)}", exc_info=True)
+            logger.error(f"Fehler bei der Refresh-Token-Erstellung: {str(e)}", exc_info=True)
+            raise HTTPException(
+                status_code=500,
+                detail="Refresh-Token-Erstellung fehlgeschlagen"
+            )
+    
+    def verify_password(self, plain_password: str, hashed_password: str) -> bool:
+        """Überprüft ein Passwort gegen einen Hash
+        
+        Args:
+            plain_password: Klartext-Passwort
+            hashed_password: Gehashtes Passwort
+            
+        Returns:
+            bool: True, wenn Passwort korrekt ist
+        """
+        try:
+            # Stelle sicher, dass hashed_password ein String ist
+            if isinstance(hashed_password, bytes):
+                hashed_password = hashed_password.decode('utf-8')
+            
+            # Prüfe, ob das Passwort bereits gehasht ist
+            if hashed_password.startswith('$2b$') or hashed_password.startswith('$2a$') or hashed_password.startswith('$2y$'):
+                # Korrektes bcrypt-Format
+                try:
+                    return bcrypt.checkpw(
+                        plain_password.encode('utf-8'),
+                        hashed_password.encode('utf-8')
+                    )
+                except Exception as e:
+                    logger.warning(f"bcrypt-Überprüfung fehlgeschlagen: {str(e)}")
+                    # Versuche es mit direkter String-Überprüfung
+                    return plain_password == hashed_password
+            else:
+                # Kein bcrypt-Format - wahrscheinlich Klartext-Passwort
+                logger.warning("Gespeichertes Passwort hat kein bcrypt-Format. Verwende Klartext-Überprüfung.")
+                return plain_password == hashed_password
+                
+        except Exception as e:
+            logger.error(f"Fehler bei der Passwortüberprüfung: {str(e)}", exc_info=True)
             return False
     
-    def get_user_for_api_key(self, api_key: str) -> Optional[Dict[str, Any]]:
-        """
-        Gibt den Benutzer für einen API-Schlüssel zurück.
+    def authenticate_user(self, username: str, password: str) -> Optional[Dict]:
+        """Authentifiziert einen Benutzer
         
         Args:
-            api_key: Der API-Schlüssel
+            username: Benutzername
+            password: Passwort
             
         Returns:
-            Optional[Dict[str, Any]]: Der Benutzer, falls gefunden, sonst None
+            Optional[Dict]: Benutzerdaten bei Erfolg, sonst None
         """
+        logger.info(f"Authentifizierungsversuch für Benutzer: {username}")
+        
         try:
-            result = self.kb.select("""
-                SELECT users.* FROM api_keys
-                JOIN users ON api_keys.user_id = users.id
-                WHERE api_key = ?
-            """, (api_key,))
+            # Hole Benutzer aus der Datenbank
+            user = self.user_manager.get_user(username)
             
-            if result:
-                user_data = result[0]
-                return {
-                    "id": user_data[0],
-                    "username": user_data[1],
-                    "is_admin": bool(user_data[3]),
-                    "created_at": user_data[4],
-                    "last_login": user_data[5],
-                    "enabled": bool(user_data[6])
-                }
-            return None
-        except Exception as e:
-            logger.error(f"Fehler beim Abrufen des Benutzers für API-Schlüssel: {str(e)}", exc_info=True)
-            return None
-    
-    def generate_api_key(self, username: str, description: str = "") -> str:
-        """
-        Generiert einen API-Schlüssel für einen Benutzer.
-        
-        Args:
-            username: Der Benutzername
-            description: Beschreibung des API-Schlüssels
+            if not user:
+                logger.warning(f"Benutzer '{username}' nicht gefunden")
+                return None
+                
+            # Extrahiere das gespeicherte Passwort
+            stored_password = user['password']
             
-        Returns:
-            str: Der API-Schlüssel
-        """
-        # Hole den Benutzer
-        user = self.user_manager.get_user(username)
-        if not user:
-            logger.warning(f"Benutzer '{username}' nicht gefunden für API-Schlüssel-Generierung")
-            return ""
-        
-        # Generiere einen sicheren API-Schlüssel
-        api_key = secrets.token_urlsafe(32)
-        
-        # Speichere den API-Schlüssel in der Datenbank
-        try:
-            self.kb.execute(
-                "INSERT INTO api_keys (user_id, api_key, created_at, description) VALUES (?, ?, ?, ?)",
-                (user["id"], api_key, time.time(), description)
-            )
-            logger.info(f"API-Schlüssel für Benutzer '{username}' generiert")
-        except Exception as e:
-            logger.error(f"Fehler beim Speichern des API-Schlüssels: {str(e)}", exc_info=True)
-        
-        return api_key
-    
-    def setup_2fa(self, username: str) -> Dict[str, Any]:
-        """
-        Richtet 2FA für einen Benutzer ein.
-        
-        Args:
-            username: Der Benutzername
+            # Überprüfe Passwort
+            if not self.verify_password(password, stored_password):
+                logger.warning(f"Falsches Passwort für Benutzer '{username}'")
+                return None
             
-        Returns:
-            Dict[str, Any]: TOTP-Secret, QR-Code-URL und Backup-Codes
-        """
-        # Generiere ein TOTP-Secret
-        secret = pyotp.random_base32()
-        
-        # Generiere Backup-Codes
-        backup_codes = [secrets.token_hex(6) for _ in range(10)]
-        
-        # Speichere das Secret und die Backup-Codes
-        if self.user_manager.set_2fa_secret(username, secret, backup_codes):
-            # Erstelle eine TOTP-Instanz
-            totp = pyotp.TOTP(secret)
-            
-            # Generiere die QR-Code-URL
-            provisioning_uri = totp.provisioning_uri(
-                name=username,
-                issuer_name="Mindestentinel"
-            )
+            # Erfolgreiche Authentifizierung
+            logger.info(f"Erfolgreiche Authentifizierung für Benutzer '{username}'")
             
             return {
-                "secret": secret,
-                "qr_code": provisioning_uri,
-                "backup_codes": backup_codes
+                "username": username,
+                "is_admin": user['is_admin']
             }
-        
-        return {"error": "Fehler bei der 2FA-Einrichtung"}
+        except Exception as e:
+            logger.error(f"Unerwarteter Fehler bei der Authentifizierung: {str(e)}", exc_info=True)
+            return None
     
-    def disable_2fa(self, username: str) -> bool:
-        """
-        Deaktiviert 2FA für einen Benutzer.
+    def verify_token(self, token: str) -> Dict:
+        """Verifiziert ein JWT-Token
         
         Args:
-            username: Der Benutzername
+            token: JWT-Token
             
         Returns:
-            bool: True, wenn erfolgreich, sonst False
+            Dict: Decodiertes Token
+            
+        Raises:
+            HTTPException: Bei ungültigem Token
         """
-        return self.user_manager.set_2fa_secret(username, "", [])
+        try:
+            # Decodiere das Token
+            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            
+            # Überprüfe Token-Typ
+            if payload.get("token_type") != "access":
+                logger.warning("Versuch, ein Refresh-Token als Zugriffstoken zu verwenden")
+                raise HTTPException(
+                    status_code=401,
+                    detail="Ungültiger Token-Typ"
+                )
+            
+            # Überprüfe Ablaufdatum (wird bereits von jwt.decode geprüft)
+            username = payload.get("sub")
+            if username is None:
+                logger.warning("Token enthält keinen Benutzernamen")
+                raise HTTPException(
+                    status_code=401,
+                    detail="Ungültiges Token"
+                )
+            
+            logger.info(f"Token erfolgreich verifiziert für Benutzer: {username}")
+            return payload
+        except ExpiredSignatureError:
+            logger.warning("Token ist abgelaufen")
+            raise HTTPException(
+                status_code=401,
+                detail="Token ist abgelaufen"
+            )
+        except PyJWTError as e:
+            logger.error(f"Token-Verifikation fehlgeschlagen: {str(e)}")
+            raise HTTPException(
+                status_code=401,
+                detail="Token-Verifikation fehlgeschlagen"
+            )
+        except Exception as e:
+            logger.error(f"Unerwarteter Fehler bei der Token-Verifikation: {str(e)}", exc_info=True)
+            raise HTTPException(
+                status_code=500,
+                detail="Interner Authentifizierungsfehler"
+            )
+    
+    def get_current_user(self, token: str = Depends(oauth2_scheme)) -> Dict:
+        """Holt den aktuellen Benutzer aus dem Token
+        
+        Args:
+            token: JWT-Token
+            
+        Returns:
+            Dict: Benutzerdaten
+            
+        Raises:
+            HTTPException: Bei ungültigem Token
+        """
+        try:
+            payload = self.verify_token(token)
+            username = payload.get("sub")
+            
+            if username is None:
+                raise HTTPException(
+                    status_code=401,
+                    detail="Ungültiges Token"
+                )
+            
+            # Hole Benutzerinformationen
+            user = self.user_manager.get_user(username)
+            if not user:
+                raise HTTPException(
+                    status_code=401,
+                    detail="Benutzer nicht gefunden"
+                )
+            
+            return {
+                "username": username,
+                "is_admin": user['is_admin']
+            }
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Unerwarteter Fehler bei der Benutzerabfrage: {str(e)}", exc_info=True)
+            raise HTTPException(
+                status_code=500,
+                detail="Interner Authentifizierungsfehler"
+            )
+    
+    def require_admin(self, request: Request) -> Dict:
+        """Stellt sicher, dass der aktuelle Benutzer Admin-Rechte hat
+        
+        Args:
+            request: FastAPI Request-Objekt
+            
+        Returns:
+            Dict: Benutzerdaten
+            
+        Raises:
+            HTTPException: Wenn der Benutzer kein Admin ist
+        """
+        try:
+            user = self.get_current_user(request)
+            
+            if not user.get("is_admin", False):
+                logger.warning(f"Zugriffsversuch auf Admin-Endpunkt durch Nicht-Admin: {user.get('username')}")
+                raise HTTPException(
+                    status_code=403,
+                    detail="Admin-Rechte erforderlich"
+                )
+            
+            return user
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Unerwarteter Fehler bei der Admin-Prüfung: {str(e)}", exc_info=True)
+            raise HTTPException(
+                status_code=500,
+                detail="Interner Authentifizierungsfehler"
+            )
