@@ -559,3 +559,8 @@ TypeError: create_app() takes 3 positional arguments but 4 were given
 2025-09-29 12:35:47,422 [INFO] mindestentinel.autonomous_loop: AutonomousLoop aktiviert. Beginne mit Lernzyklen...
 2025-09-29 12:35:47,423 [INFO] mindestentinel.autonomous_loop: Beginne Hintergrundloop für autonomen Lernzyklus.
 2025-09-29 12:35:47,430 [INFO] mindestentinel.main: Starting REST API on 0.0.0.0:8000
+2025-09-29 12:42:19,694 [INFO] mindestentinel.main: Received KeyboardInterrupt. Shutting down.
+2025-09-29 12:42:19,695 [INFO] mindestentinel.main: Deaktiviere autonomen Lernzyklus...
+2025-09-29 12:42:19,695 [INFO] mindestentinel.autonomous_loop: AutonomousLoop deaktiviert.
+2025-09-29 12:42:24,702 [INFO] mindestentinel.ai_engine: AIBrain gestoppt.
+2025-09-29 12:42:24,702 [INFO] mindestentinel.main: System shutdown complete.

@@ -1,0 +1,377 @@
+2025-09-30 11:30:24,102 [INFO] root: Logging konfiguriert. Logs werden gespeichert in: C:\Users\bkrie\Desktop\Mindestentinel\Mindestentinel - Alpha-Projekt build0015.3A\logs\mindestentinel_20250930.log
+2025-09-30 11:32:32,166 [INFO] root: Logging konfiguriert. Logs werden gespeichert in: C:\Users\bkrie\Desktop\Mindestentinel\Mindestentinel - Alpha-Projekt build0015.3A\logs\mindestentinel_20250930.log
+2025-09-30 11:32:32,168 [INFO] mindestentinel.main: Debug-Modus aktiviert
+2025-09-30 11:32:32,168 [INFO] mindestentinel.main: Initialisiere ModelManager...
+2025-09-30 11:32:32,731 [INFO] mindestentinel.model_manager: Modell 'tiny-llama' erfolgreich geladen.
+2025-09-30 11:32:32,739 [INFO] mindestentinel.model_manager: Geladen: 1 Modelle aus model_registry.json
+2025-09-30 11:32:32,739 [INFO] mindestentinel.model_manager: Starte Modellverzeichnis-Überwachung (Intervall: 60 Sekunden)...
+2025-09-30 11:32:32,740 [INFO] mindestentinel.model_manager: ModelManager initialisiert mit 1 Modellen aus data/models.
+2025-09-30 11:32:32,740 [INFO] mindestentinel.main: Initialisiere PluginManager...
+2025-09-30 11:32:32,740 [INFO] mindestentinel.main: Initialisiere RuleEngine...
+2025-09-30 11:32:32,749 [INFO] mindestentinel.rule_engine: 2 Regeln geladen aus config\rules.yaml
+2025-09-30 11:32:32,772 [INFO] mindestentinel.rule_engine: Regel-Signatur erfolgreich verifiziert
+2025-09-30 11:32:32,772 [INFO] mindestentinel.rule_engine: Starte Regeldatei-Überwachung (Intervall: 30 Sekunden)...
+2025-09-30 11:32:32,773 [INFO] mindestentinel.rule_engine: RuleEngine initialisiert mit 2 Regeln.
+2025-09-30 11:32:32,773 [INFO] mindestentinel.main: Initialisiere AIBrain...
+2025-09-30 11:32:32,773 [INFO] mindestentinel.ai_engine: AIBrain initialisiert.
+2025-09-30 11:32:32,773 [DEBUG] mindestentinel.ai_engine: ModelManager injiziert.
+2025-09-30 11:32:32,773 [INFO] mindestentinel.main: knowledge_base nicht in AIBrain gefunden - initialisiere neu
+2025-09-30 11:32:32,782 [DEBUG] mindestentinel.knowledge_base: Verschlüsselungssystem initialisiert.
+2025-09-30 11:32:32,785 [INFO] mindestentinel.knowledge_base: Datenbankstruktur initialisiert.
+2025-09-30 11:32:32,785 [INFO] mindestentinel.knowledge_base: Wissensdatenbank initialisiert: data/knowledge/knowledge.db
+2025-09-30 11:32:32,785 [INFO] mindestentinel.main: Initialisiere UserManager...
+2025-09-30 11:32:32,787 [DEBUG] mindestentinel.user_manager: Benutzertabelle initialisiert.
+2025-09-30 11:32:32,787 [INFO] mindestentinel.user_manager: UserManager initialisiert.
+2025-09-30 11:32:32,787 [INFO] mindestentinel.main: Initialisiere AuthManager...
+2025-09-30 11:32:32,796 [INFO] mindestentinel.auth_manager: 0 Benutzer geladen.
+2025-09-30 11:32:32,796 [INFO] mindestentinel.auth_manager: AuthManager initialisiert.
+2025-09-30 11:32:32,797 [INFO] mindestentinel.main: Standard-Admin-Benutzer 'admin' existiert bereits
+2025-09-30 11:32:32,797 [INFO] mindestentinel.main: model_orchestrator nicht in AIBrain gefunden - initialisiere neu
+2025-09-30 11:32:32,797 [INFO] src.core.multi_model_orchestrator: MultiModelOrchestrator initialisiert.
+2025-09-30 11:32:32,798 [DEBUG] src.core.multi_model_orchestrator: ModelManager injiziert
+2025-09-30 11:32:32,798 [INFO] mindestentinel.main: rule_engine nicht in AIBrain gefunden - verwende vorinitialisierte Instanz
+2025-09-30 11:32:32,798 [INFO] mindestentinel.main: protection_module nicht in AIBrain gefunden - initialisiere neu mit rule_engine
+2025-09-30 11:32:32,798 [INFO] mindestentinel.main: system_monitor nicht in AIBrain gefunden - initialisiere neu
+2025-09-30 11:32:32,798 [INFO] src.core.system_monitor: SystemMonitor initialisiert.
+2025-09-30 11:32:32,798 [INFO] mindestentinel.main: Initialisiere ModelCloner...
+2025-09-30 11:32:32,799 [INFO] mindestentinel.model_cloner: ModelCloner initialisiert. Backup-Verzeichnis: data/models/backups
+2025-09-30 11:32:32,799 [INFO] mindestentinel.main: Initialisiere KnowledgeTransfer...
+2025-09-30 11:32:32,799 [INFO] mindestentinel.knowledge_transfer: KnowledgeTransfer initialisiert.
+2025-09-30 11:32:32,799 [INFO] mindestentinel.main: Initialisiere ModelTrainer...
+2025-09-30 11:32:32,799 [INFO] mindestentinel.model_trainer: ModelTrainer initialisiert.
+2025-09-30 11:32:32,799 [INFO] mindestentinel.main: Registriere 1 Modelle als Lehrer-Modelle: ['tiny-llama']
+2025-09-30 11:32:32,799 [INFO] src.core.multi_model_orchestrator: Lehrer-Modell registriert: tiny-llama
+2025-09-30 11:32:32,799 [INFO] mindestentinel.main: Initialisiere den autonomen Lernzyklus...
+2025-09-30 11:32:32,800 [INFO] mindestentinel.autonomous_loop: AutonomousLoop initialisiert. Warte auf Aktivierung...
+2025-09-30 11:32:32,800 [INFO] mindestentinel.main: Autonomer Lernzyklus erfolgreich initialisiert
+2025-09-30 11:32:33,501 [INFO] mindestentinel.main: Plugins auto-loaded: 5
+2025-09-30 11:32:33,501 [INFO] mindestentinel.ai_engine: AIBrain gestartet.
+2025-09-30 11:32:33,501 [INFO] mindestentinel.main: Aktiviere autonomen Lernzyklus...
+2025-09-30 11:32:33,501 [INFO] mindestentinel.autonomous_loop: AutonomousLoop aktiviert. Beginne mit Lernzyklen...
+2025-09-30 11:32:33,502 [INFO] mindestentinel.autonomous_loop: Beginne Hintergrundloop für autonomen Lernzyklus.
+2025-09-30 11:32:33,511 [INFO] mindestentinel.main: Starting REST API on 8000:8000
+2025-09-30 11:32:33,560 [DEBUG] asyncio: Using proactor: IocpProactor
+2025-09-30 11:32:37,513 [INFO] mindestentinel.main: API-Server beendet. Stoppe System.
+2025-09-30 11:32:37,513 [INFO] mindestentinel.main: Deaktiviere autonomen Lernzyklus...
+2025-09-30 11:32:37,513 [INFO] mindestentinel.autonomous_loop: AutonomousLoop deaktiviert.
+2025-09-30 11:32:42,514 [INFO] mindestentinel.ai_engine: AIBrain gestoppt.
+2025-09-30 11:32:42,514 [INFO] mindestentinel.main: System shutdown complete.
+2025-09-30 11:33:26,663 [INFO] root: Logging konfiguriert. Logs werden gespeichert in: C:\Users\bkrie\Desktop\Mindestentinel\Mindestentinel - Alpha-Projekt build0015.3A\logs\mindestentinel_20250930.log
+2025-09-30 11:33:26,664 [INFO] mindestentinel.main: Debug-Modus aktiviert
+2025-09-30 11:33:26,664 [INFO] mindestentinel.main: Initialisiere ModelManager...
+2025-09-30 11:33:26,890 [INFO] mindestentinel.model_manager: Modell 'tiny-llama' erfolgreich geladen.
+2025-09-30 11:33:26,890 [INFO] mindestentinel.model_manager: Geladen: 1 Modelle aus model_registry.json
+2025-09-30 11:33:26,891 [INFO] mindestentinel.model_manager: Starte Modellverzeichnis-Überwachung (Intervall: 60 Sekunden)...
+2025-09-30 11:33:26,891 [INFO] mindestentinel.model_manager: ModelManager initialisiert mit 1 Modellen aus data/models.
+2025-09-30 11:33:26,891 [INFO] mindestentinel.main: Initialisiere PluginManager...
+2025-09-30 11:33:26,892 [INFO] mindestentinel.main: Initialisiere RuleEngine...
+2025-09-30 11:33:26,894 [INFO] mindestentinel.rule_engine: 2 Regeln geladen aus config\rules.yaml
+2025-09-30 11:33:26,901 [INFO] mindestentinel.rule_engine: Regel-Signatur erfolgreich verifiziert
+2025-09-30 11:33:26,901 [INFO] mindestentinel.rule_engine: Starte Regeldatei-Überwachung (Intervall: 30 Sekunden)...
+2025-09-30 11:33:26,902 [INFO] mindestentinel.rule_engine: RuleEngine initialisiert mit 2 Regeln.
+2025-09-30 11:33:26,902 [INFO] mindestentinel.main: Initialisiere AIBrain...
+2025-09-30 11:33:26,902 [INFO] mindestentinel.ai_engine: AIBrain initialisiert.
+2025-09-30 11:33:26,902 [DEBUG] mindestentinel.ai_engine: ModelManager injiziert.
+2025-09-30 11:33:26,902 [INFO] mindestentinel.main: knowledge_base nicht in AIBrain gefunden - initialisiere neu
+2025-09-30 11:33:26,903 [DEBUG] mindestentinel.knowledge_base: Verschlüsselungssystem initialisiert.
+2025-09-30 11:33:26,904 [INFO] mindestentinel.knowledge_base: Datenbankstruktur initialisiert.
+2025-09-30 11:33:26,904 [INFO] mindestentinel.knowledge_base: Wissensdatenbank initialisiert: data/knowledge/knowledge.db
+2025-09-30 11:33:26,905 [INFO] mindestentinel.main: Initialisiere UserManager...
+2025-09-30 11:33:26,906 [DEBUG] mindestentinel.user_manager: Benutzertabelle initialisiert.
+2025-09-30 11:33:26,906 [INFO] mindestentinel.user_manager: UserManager initialisiert.
+2025-09-30 11:33:26,906 [INFO] mindestentinel.main: Initialisiere AuthManager...
+2025-09-30 11:33:26,907 [INFO] mindestentinel.auth_manager: 0 Benutzer geladen.
+2025-09-30 11:33:26,907 [INFO] mindestentinel.auth_manager: AuthManager initialisiert.
+2025-09-30 11:33:26,908 [INFO] mindestentinel.main: Standard-Admin-Benutzer 'admin' existiert bereits
+2025-09-30 11:33:26,908 [INFO] mindestentinel.main: model_orchestrator nicht in AIBrain gefunden - initialisiere neu
+2025-09-30 11:33:26,908 [INFO] src.core.multi_model_orchestrator: MultiModelOrchestrator initialisiert.
+2025-09-30 11:33:26,908 [DEBUG] src.core.multi_model_orchestrator: ModelManager injiziert
+2025-09-30 11:33:26,909 [INFO] mindestentinel.main: rule_engine nicht in AIBrain gefunden - verwende vorinitialisierte Instanz
+2025-09-30 11:33:26,909 [INFO] mindestentinel.main: protection_module nicht in AIBrain gefunden - initialisiere neu mit rule_engine
+2025-09-30 11:33:26,909 [INFO] mindestentinel.main: system_monitor nicht in AIBrain gefunden - initialisiere neu
+2025-09-30 11:33:26,909 [INFO] src.core.system_monitor: SystemMonitor initialisiert.
+2025-09-30 11:33:26,909 [INFO] mindestentinel.main: Initialisiere ModelCloner...
+2025-09-30 11:33:26,909 [INFO] mindestentinel.model_cloner: ModelCloner initialisiert. Backup-Verzeichnis: data/models/backups
+2025-09-30 11:33:26,910 [INFO] mindestentinel.main: Initialisiere KnowledgeTransfer...
+2025-09-30 11:33:26,910 [INFO] mindestentinel.knowledge_transfer: KnowledgeTransfer initialisiert.
+2025-09-30 11:33:26,910 [INFO] mindestentinel.main: Initialisiere ModelTrainer...
+2025-09-30 11:33:26,910 [INFO] mindestentinel.model_trainer: ModelTrainer initialisiert.
+2025-09-30 11:33:26,910 [INFO] mindestentinel.main: Registriere 1 Modelle als Lehrer-Modelle: ['tiny-llama']
+2025-09-30 11:33:26,910 [INFO] src.core.multi_model_orchestrator: Lehrer-Modell registriert: tiny-llama
+2025-09-30 11:33:26,910 [INFO] mindestentinel.main: Initialisiere den autonomen Lernzyklus...
+2025-09-30 11:33:26,910 [INFO] mindestentinel.autonomous_loop: AutonomousLoop initialisiert. Warte auf Aktivierung...
+2025-09-30 11:33:26,910 [INFO] mindestentinel.main: Autonomer Lernzyklus erfolgreich initialisiert
+2025-09-30 11:33:26,982 [INFO] mindestentinel.main: Plugins auto-loaded: 5
+2025-09-30 11:33:26,983 [INFO] mindestentinel.ai_engine: AIBrain gestartet.
+2025-09-30 11:33:26,983 [INFO] mindestentinel.main: Aktiviere autonomen Lernzyklus...
+2025-09-30 11:33:26,983 [INFO] mindestentinel.autonomous_loop: AutonomousLoop aktiviert. Beginne mit Lernzyklen...
+2025-09-30 11:33:26,984 [INFO] mindestentinel.autonomous_loop: Beginne Hintergrundloop für autonomen Lernzyklus.
+2025-09-30 11:33:26,992 [INFO] mindestentinel.main: Starting REST API on 0.0.0.0:8000
+2025-09-30 11:33:26,996 [DEBUG] asyncio: Using proactor: IocpProactor
+2025-09-30 11:38:56,312 [DEBUG] python_multipart.multipart: Calling on_field_start with no data
+2025-09-30 11:38:56,312 [DEBUG] python_multipart.multipart: Calling on_field_name with data[0:8]
+2025-09-30 11:38:56,312 [DEBUG] python_multipart.multipart: Calling on_field_data with data[9:14]
+2025-09-30 11:38:56,312 [DEBUG] python_multipart.multipart: Calling on_field_end with no data
+2025-09-30 11:38:56,312 [DEBUG] python_multipart.multipart: Calling on_field_start with no data
+2025-09-30 11:38:56,313 [DEBUG] python_multipart.multipart: Calling on_field_name with data[15:23]
+2025-09-30 11:38:56,313 [DEBUG] python_multipart.multipart: Calling on_field_data with data[24:36]
+2025-09-30 11:38:56,313 [DEBUG] python_multipart.multipart: Calling on_field_end with no data
+2025-09-30 11:38:56,313 [DEBUG] python_multipart.multipart: Calling on_end with no data
+2025-09-30 11:38:56,342 [WARNING] mindestentinel.auth_manager: Anmeldeversuch für nicht existierenden Benutzer 'admin'.
+2025-09-30 11:39:05,849 [DEBUG] python_multipart.multipart: Calling on_field_start with no data
+2025-09-30 11:39:05,849 [DEBUG] python_multipart.multipart: Calling on_field_name with data[0:8]
+2025-09-30 11:39:05,849 [DEBUG] python_multipart.multipart: Calling on_field_data with data[9:14]
+2025-09-30 11:39:05,850 [DEBUG] python_multipart.multipart: Calling on_field_end with no data
+2025-09-30 11:39:05,850 [DEBUG] python_multipart.multipart: Calling on_field_start with no data
+2025-09-30 11:39:05,850 [DEBUG] python_multipart.multipart: Calling on_field_name with data[15:23]
+2025-09-30 11:39:05,850 [DEBUG] python_multipart.multipart: Calling on_field_data with data[24:37]
+2025-09-30 11:39:05,850 [DEBUG] python_multipart.multipart: Calling on_field_end with no data
+2025-09-30 11:39:05,850 [DEBUG] python_multipart.multipart: Calling on_end with no data
+2025-09-30 11:39:05,851 [WARNING] mindestentinel.auth_manager: Anmeldeversuch für nicht existierenden Benutzer 'admin'.
+2025-09-30 11:39:09,251 [DEBUG] python_multipart.multipart: Calling on_field_start with no data
+2025-09-30 11:39:09,251 [DEBUG] python_multipart.multipart: Calling on_field_name with data[0:8]
+2025-09-30 11:39:09,251 [DEBUG] python_multipart.multipart: Calling on_field_data with data[9:14]
+2025-09-30 11:39:09,251 [DEBUG] python_multipart.multipart: Calling on_field_end with no data
+2025-09-30 11:39:09,251 [DEBUG] python_multipart.multipart: Calling on_field_start with no data
+2025-09-30 11:39:09,252 [DEBUG] python_multipart.multipart: Calling on_field_name with data[15:23]
+2025-09-30 11:39:09,252 [DEBUG] python_multipart.multipart: Calling on_field_data with data[24:35]
+2025-09-30 11:39:09,252 [DEBUG] python_multipart.multipart: Calling on_field_end with no data
+2025-09-30 11:39:09,252 [DEBUG] python_multipart.multipart: Calling on_end with no data
+2025-09-30 11:39:09,253 [WARNING] mindestentinel.auth_manager: Anmeldeversuch für nicht existierenden Benutzer 'admin'.
+2025-09-30 11:39:27,892 [DEBUG] python_multipart.multipart: Calling on_field_start with no data
+2025-09-30 11:39:27,892 [DEBUG] python_multipart.multipart: Calling on_field_name with data[0:8]
+2025-09-30 11:39:27,892 [DEBUG] python_multipart.multipart: Calling on_field_data with data[9:18]
+2025-09-30 11:39:27,892 [DEBUG] python_multipart.multipart: Calling on_field_end with no data
+2025-09-30 11:39:27,892 [DEBUG] python_multipart.multipart: Calling on_field_start with no data
+2025-09-30 11:39:27,893 [DEBUG] python_multipart.multipart: Calling on_field_name with data[19:27]
+2025-09-30 11:39:27,893 [DEBUG] python_multipart.multipart: Calling on_field_data with data[28:40]
+2025-09-30 11:39:27,893 [DEBUG] python_multipart.multipart: Calling on_field_end with no data
+2025-09-30 11:39:27,893 [DEBUG] python_multipart.multipart: Calling on_end with no data
+2025-09-30 11:39:27,894 [WARNING] mindestentinel.auth_manager: Anmeldeversuch für nicht existierenden Benutzer 'benni1233'.
+2025-09-30 11:39:51,782 [DEBUG] python_multipart.multipart: Calling on_field_start with no data
+2025-09-30 11:39:51,782 [DEBUG] python_multipart.multipart: Calling on_field_name with data[0:8]
+2025-09-30 11:39:51,782 [DEBUG] python_multipart.multipart: Calling on_field_data with data[9:14]
+2025-09-30 11:39:51,782 [DEBUG] python_multipart.multipart: Calling on_field_end with no data
+2025-09-30 11:39:51,782 [DEBUG] python_multipart.multipart: Calling on_field_start with no data
+2025-09-30 11:39:51,783 [DEBUG] python_multipart.multipart: Calling on_field_name with data[15:23]
+2025-09-30 11:39:51,783 [DEBUG] python_multipart.multipart: Calling on_field_data with data[24:32]
+2025-09-30 11:39:51,783 [DEBUG] python_multipart.multipart: Calling on_field_end with no data
+2025-09-30 11:39:51,783 [DEBUG] python_multipart.multipart: Calling on_end with no data
+2025-09-30 11:39:51,784 [WARNING] mindestentinel.auth_manager: Anmeldeversuch für nicht existierenden Benutzer 'admin'.
+2025-09-30 11:47:08,657 [DEBUG] python_multipart.multipart: Calling on_field_start with no data
+2025-09-30 11:47:08,657 [DEBUG] python_multipart.multipart: Calling on_field_name with data[0:8]
+2025-09-30 11:47:08,657 [DEBUG] python_multipart.multipart: Calling on_field_data with data[9:14]
+2025-09-30 11:47:08,657 [DEBUG] python_multipart.multipart: Calling on_field_end with no data
+2025-09-30 11:47:08,657 [DEBUG] python_multipart.multipart: Calling on_field_start with no data
+2025-09-30 11:47:08,658 [DEBUG] python_multipart.multipart: Calling on_field_name with data[15:23]
+2025-09-30 11:47:08,658 [DEBUG] python_multipart.multipart: Calling on_field_data with data[24:37]
+2025-09-30 11:47:08,658 [DEBUG] python_multipart.multipart: Calling on_field_end with no data
+2025-09-30 11:47:08,658 [DEBUG] python_multipart.multipart: Calling on_end with no data
+2025-09-30 11:47:08,659 [WARNING] mindestentinel.auth_manager: Anmeldeversuch für nicht existierenden Benutzer 'admin'.
+2025-09-30 11:50:28,277 [DEBUG] python_multipart.multipart: Calling on_field_start with no data
+2025-09-30 11:50:28,277 [DEBUG] python_multipart.multipart: Calling on_field_name with data[0:8]
+2025-09-30 11:50:28,277 [DEBUG] python_multipart.multipart: Calling on_field_data with data[9:13]
+2025-09-30 11:50:28,277 [DEBUG] python_multipart.multipart: Calling on_field_end with no data
+2025-09-30 11:50:28,277 [DEBUG] python_multipart.multipart: Calling on_field_start with no data
+2025-09-30 11:50:28,278 [DEBUG] python_multipart.multipart: Calling on_field_name with data[14:22]
+2025-09-30 11:50:28,278 [DEBUG] python_multipart.multipart: Calling on_field_data with data[23:30]
+2025-09-30 11:50:28,278 [DEBUG] python_multipart.multipart: Calling on_field_end with no data
+2025-09-30 11:50:28,278 [DEBUG] python_multipart.multipart: Calling on_end with no data
+2025-09-30 11:50:28,279 [WARNING] mindestentinel.auth_manager: Anmeldeversuch für nicht existierenden Benutzer 'test'.
+2025-09-30 11:52:23,654 [DEBUG] python_multipart.multipart: Calling on_field_start with no data
+2025-09-30 11:52:23,655 [DEBUG] python_multipart.multipart: Calling on_field_name with data[0:8]
+2025-09-30 11:52:23,655 [DEBUG] python_multipart.multipart: Calling on_field_data with data[9:14]
+2025-09-30 11:52:23,655 [DEBUG] python_multipart.multipart: Calling on_field_end with no data
+2025-09-30 11:52:23,655 [DEBUG] python_multipart.multipart: Calling on_field_start with no data
+2025-09-30 11:52:23,655 [DEBUG] python_multipart.multipart: Calling on_field_name with data[15:23]
+2025-09-30 11:52:23,655 [DEBUG] python_multipart.multipart: Calling on_field_data with data[24:37]
+2025-09-30 11:52:23,655 [DEBUG] python_multipart.multipart: Calling on_field_end with no data
+2025-09-30 11:52:23,656 [DEBUG] python_multipart.multipart: Calling on_end with no data
+2025-09-30 11:52:23,656 [WARNING] mindestentinel.auth_manager: Anmeldeversuch für nicht existierenden Benutzer 'admin'.
+2025-09-30 11:52:43,786 [DEBUG] python_multipart.multipart: Calling on_field_start with no data
+2025-09-30 11:52:43,786 [DEBUG] python_multipart.multipart: Calling on_field_name with data[0:8]
+2025-09-30 11:52:43,786 [DEBUG] python_multipart.multipart: Calling on_field_data with data[9:14]
+2025-09-30 11:52:43,787 [DEBUG] python_multipart.multipart: Calling on_field_end with no data
+2025-09-30 11:52:43,787 [DEBUG] python_multipart.multipart: Calling on_field_start with no data
+2025-09-30 11:52:43,787 [DEBUG] python_multipart.multipart: Calling on_field_name with data[15:23]
+2025-09-30 11:52:43,787 [DEBUG] python_multipart.multipart: Calling on_field_data with data[24:39]
+2025-09-30 11:52:43,787 [DEBUG] python_multipart.multipart: Calling on_field_end with no data
+2025-09-30 11:52:43,787 [DEBUG] python_multipart.multipart: Calling on_end with no data
+2025-09-30 11:52:43,788 [WARNING] mindestentinel.auth_manager: Anmeldeversuch für nicht existierenden Benutzer 'admin'.
+2025-09-30 11:52:50,071 [DEBUG] python_multipart.multipart: Calling on_field_start with no data
+2025-09-30 11:52:50,071 [DEBUG] python_multipart.multipart: Calling on_field_name with data[0:8]
+2025-09-30 11:52:50,071 [DEBUG] python_multipart.multipart: Calling on_field_data with data[9:14]
+2025-09-30 11:52:50,071 [DEBUG] python_multipart.multipart: Calling on_field_end with no data
+2025-09-30 11:52:50,071 [DEBUG] python_multipart.multipart: Calling on_field_start with no data
+2025-09-30 11:52:50,071 [DEBUG] python_multipart.multipart: Calling on_field_name with data[15:23]
+2025-09-30 11:52:50,071 [DEBUG] python_multipart.multipart: Calling on_field_data with data[24:39]
+2025-09-30 11:52:50,071 [DEBUG] python_multipart.multipart: Calling on_field_end with no data
+2025-09-30 11:52:50,072 [DEBUG] python_multipart.multipart: Calling on_end with no data
+2025-09-30 11:52:50,072 [WARNING] mindestentinel.auth_manager: Anmeldeversuch für nicht existierenden Benutzer 'admin'.
+2025-09-30 11:52:56,696 [DEBUG] python_multipart.multipart: Calling on_field_start with no data
+2025-09-30 11:52:56,696 [DEBUG] python_multipart.multipart: Calling on_field_name with data[0:8]
+2025-09-30 11:52:56,696 [DEBUG] python_multipart.multipart: Calling on_field_data with data[9:14]
+2025-09-30 11:52:56,696 [DEBUG] python_multipart.multipart: Calling on_field_end with no data
+2025-09-30 11:52:56,696 [DEBUG] python_multipart.multipart: Calling on_field_start with no data
+2025-09-30 11:52:56,696 [DEBUG] python_multipart.multipart: Calling on_field_name with data[15:23]
+2025-09-30 11:52:56,697 [DEBUG] python_multipart.multipart: Calling on_field_data with data[24:38]
+2025-09-30 11:52:56,697 [DEBUG] python_multipart.multipart: Calling on_field_end with no data
+2025-09-30 11:52:56,697 [DEBUG] python_multipart.multipart: Calling on_end with no data
+2025-09-30 11:52:56,698 [WARNING] mindestentinel.auth_manager: Anmeldeversuch für nicht existierenden Benutzer 'admin'.
+2025-09-30 11:53:10,567 [DEBUG] python_multipart.multipart: Calling on_field_start with no data
+2025-09-30 11:53:10,567 [DEBUG] python_multipart.multipart: Calling on_field_name with data[0:9]
+2025-09-30 11:53:10,567 [DEBUG] python_multipart.multipart: Calling on_field_data with data[10:15]
+2025-09-30 11:53:10,568 [DEBUG] python_multipart.multipart: Calling on_field_end with no data
+2025-09-30 11:53:10,568 [DEBUG] python_multipart.multipart: Calling on_end with no data
+2025-09-30 11:53:16,283 [DEBUG] python_multipart.multipart: Calling on_field_start with no data
+2025-09-30 11:53:16,284 [DEBUG] python_multipart.multipart: Calling on_field_name with data[0:9]
+2025-09-30 11:53:16,284 [DEBUG] python_multipart.multipart: Calling on_field_data with data[10:15]
+2025-09-30 11:53:16,284 [DEBUG] python_multipart.multipart: Calling on_field_end with no data
+2025-09-30 11:53:16,284 [DEBUG] python_multipart.multipart: Calling on_end with no data
+2025-09-30 11:57:24,025 [INFO] mindestentinel.main: Received KeyboardInterrupt. Shutting down.
+2025-09-30 11:57:24,025 [INFO] mindestentinel.main: Deaktiviere autonomen Lernzyklus...
+2025-09-30 11:57:24,026 [INFO] mindestentinel.autonomous_loop: AutonomousLoop deaktiviert.
+2025-09-30 11:57:29,036 [INFO] mindestentinel.ai_engine: AIBrain gestoppt.
+2025-09-30 11:57:29,036 [INFO] mindestentinel.main: System shutdown complete.
+2025-09-30 12:02:56,722 [INFO] root: Logging konfiguriert. Logs werden gespeichert in: C:\Users\bkrie\Desktop\Mindestentinel\Mindestentinel - Alpha-Projekt build0015.3A\logs\mindestentinel_20250930.log
+2025-09-30 12:02:56,723 [INFO] mindestentinel.main: Debug-Modus aktiviert
+2025-09-30 12:02:56,723 [INFO] mindestentinel.main: Initialisiere ModelManager...
+2025-09-30 12:02:56,949 [INFO] mindestentinel.model_manager: Modell 'tiny-llama' erfolgreich geladen.
+2025-09-30 12:02:56,950 [INFO] mindestentinel.model_manager: Geladen: 1 Modelle aus model_registry.json
+2025-09-30 12:02:56,950 [INFO] mindestentinel.model_manager: Starte Modellverzeichnis-Überwachung (Intervall: 60 Sekunden)...
+2025-09-30 12:02:56,951 [INFO] mindestentinel.model_manager: ModelManager initialisiert mit 1 Modellen aus data/models.
+2025-09-30 12:02:56,951 [INFO] mindestentinel.main: Initialisiere PluginManager...
+2025-09-30 12:02:56,951 [INFO] mindestentinel.main: Initialisiere RuleEngine...
+2025-09-30 12:02:56,954 [INFO] mindestentinel.rule_engine: 2 Regeln geladen aus config\rules.yaml
+2025-09-30 12:02:56,960 [INFO] mindestentinel.rule_engine: Regel-Signatur erfolgreich verifiziert
+2025-09-30 12:02:56,960 [INFO] mindestentinel.rule_engine: Starte Regeldatei-Überwachung (Intervall: 30 Sekunden)...
+2025-09-30 12:02:56,961 [INFO] mindestentinel.rule_engine: RuleEngine initialisiert mit 2 Regeln.
+2025-09-30 12:02:56,961 [INFO] mindestentinel.main: Initialisiere AIBrain...
+2025-09-30 12:02:56,961 [INFO] mindestentinel.ai_engine: AIBrain initialisiert.
+2025-09-30 12:02:56,961 [DEBUG] mindestentinel.ai_engine: ModelManager injiziert.
+2025-09-30 12:02:56,962 [INFO] mindestentinel.main: knowledge_base nicht in AIBrain gefunden - initialisiere neu
+2025-09-30 12:02:56,963 [DEBUG] mindestentinel.knowledge_base: Verschlüsselungssystem initialisiert.
+2025-09-30 12:02:56,964 [INFO] mindestentinel.knowledge_base: Datenbankstruktur initialisiert.
+2025-09-30 12:02:56,964 [INFO] mindestentinel.knowledge_base: Wissensdatenbank initialisiert: data/knowledge/knowledge.db
+2025-09-30 12:02:56,964 [INFO] mindestentinel.main: Initialisiere UserManager...
+2025-09-30 12:02:56,965 [DEBUG] mindestentinel.user_manager: Benutzertabelle initialisiert.
+2025-09-30 12:02:56,965 [INFO] mindestentinel.user_manager: UserManager initialisiert.
+2025-09-30 12:02:56,965 [INFO] mindestentinel.main: Initialisiere AuthManager...
+2025-09-30 12:02:56,966 [INFO] mindestentinel.auth_manager: 0 Benutzer geladen.
+2025-09-30 12:02:56,966 [INFO] mindestentinel.auth_manager: AuthManager initialisiert.
+2025-09-30 12:02:56,976 [INFO] mindestentinel.user_manager: Benutzer 'admin' erstellt. (Admin)
+2025-09-30 12:02:56,976 [INFO] mindestentinel.main: Standard-Admin-Benutzer 'admin' erstellt
+2025-09-30 12:02:56,976 [INFO] mindestentinel.main: model_orchestrator nicht in AIBrain gefunden - initialisiere neu
+2025-09-30 12:02:56,976 [INFO] src.core.multi_model_orchestrator: MultiModelOrchestrator initialisiert.
+2025-09-30 12:02:56,976 [DEBUG] src.core.multi_model_orchestrator: ModelManager injiziert
+2025-09-30 12:02:56,976 [INFO] mindestentinel.main: rule_engine nicht in AIBrain gefunden - verwende vorinitialisierte Instanz
+2025-09-30 12:02:56,976 [INFO] mindestentinel.main: protection_module nicht in AIBrain gefunden - initialisiere neu mit rule_engine
+2025-09-30 12:02:56,976 [INFO] mindestentinel.main: system_monitor nicht in AIBrain gefunden - initialisiere neu
+2025-09-30 12:02:56,976 [INFO] src.core.system_monitor: SystemMonitor initialisiert.
+2025-09-30 12:02:56,977 [INFO] mindestentinel.main: Initialisiere ModelCloner...
+2025-09-30 12:02:56,977 [INFO] mindestentinel.model_cloner: ModelCloner initialisiert. Backup-Verzeichnis: data/models/backups
+2025-09-30 12:02:56,977 [INFO] mindestentinel.main: Initialisiere KnowledgeTransfer...
+2025-09-30 12:02:56,978 [INFO] mindestentinel.knowledge_transfer: KnowledgeTransfer initialisiert.
+2025-09-30 12:02:56,978 [INFO] mindestentinel.main: Initialisiere ModelTrainer...
+2025-09-30 12:02:56,978 [INFO] mindestentinel.model_trainer: ModelTrainer initialisiert.
+2025-09-30 12:02:56,978 [INFO] mindestentinel.main: Registriere 1 Modelle als Lehrer-Modelle: ['tiny-llama']
+2025-09-30 12:02:56,978 [INFO] src.core.multi_model_orchestrator: Lehrer-Modell registriert: tiny-llama
+2025-09-30 12:02:56,978 [INFO] mindestentinel.main: Initialisiere den autonomen Lernzyklus...
+2025-09-30 12:02:56,978 [INFO] mindestentinel.autonomous_loop: AutonomousLoop initialisiert. Warte auf Aktivierung...
+2025-09-30 12:02:56,978 [INFO] mindestentinel.main: Autonomer Lernzyklus erfolgreich initialisiert
+2025-09-30 12:02:57,072 [INFO] mindestentinel.main: Plugins auto-loaded: 5
+2025-09-30 12:02:57,073 [INFO] mindestentinel.ai_engine: AIBrain gestartet.
+2025-09-30 12:02:57,073 [INFO] mindestentinel.main: Aktiviere autonomen Lernzyklus...
+2025-09-30 12:02:57,073 [INFO] mindestentinel.autonomous_loop: AutonomousLoop aktiviert. Beginne mit Lernzyklen...
+2025-09-30 12:02:57,074 [INFO] mindestentinel.autonomous_loop: Beginne Hintergrundloop für autonomen Lernzyklus.
+2025-09-30 12:02:57,082 [INFO] mindestentinel.main: Starting REST API on 0.0.0.0:8000
+2025-09-30 12:02:57,089 [DEBUG] asyncio: Using proactor: IocpProactor
+2025-09-30 12:03:25,528 [DEBUG] python_multipart.multipart: Calling on_field_start with no data
+2025-09-30 12:03:25,528 [DEBUG] python_multipart.multipart: Calling on_field_name with data[0:8]
+2025-09-30 12:03:25,528 [DEBUG] python_multipart.multipart: Calling on_field_data with data[9:18]
+2025-09-30 12:03:25,529 [DEBUG] python_multipart.multipart: Calling on_field_end with no data
+2025-09-30 12:03:25,529 [DEBUG] python_multipart.multipart: Calling on_field_start with no data
+2025-09-30 12:03:25,529 [DEBUG] python_multipart.multipart: Calling on_field_name with data[19:27]
+2025-09-30 12:03:25,529 [DEBUG] python_multipart.multipart: Calling on_field_data with data[28:41]
+2025-09-30 12:03:25,529 [DEBUG] python_multipart.multipart: Calling on_field_end with no data
+2025-09-30 12:03:25,529 [DEBUG] python_multipart.multipart: Calling on_end with no data
+2025-09-30 12:03:25,534 [WARNING] mindestentinel.auth_manager: Anmeldeversuch für nicht existierenden Benutzer 'benni1233'.
+2025-09-30 12:04:12,112 [DEBUG] python_multipart.multipart: Calling on_field_start with no data
+2025-09-30 12:04:12,112 [DEBUG] python_multipart.multipart: Calling on_field_name with data[0:8]
+2025-09-30 12:04:12,112 [DEBUG] python_multipart.multipart: Calling on_field_data with data[9:18]
+2025-09-30 12:04:12,112 [DEBUG] python_multipart.multipart: Calling on_field_end with no data
+2025-09-30 12:04:12,112 [DEBUG] python_multipart.multipart: Calling on_field_start with no data
+2025-09-30 12:04:12,113 [DEBUG] python_multipart.multipart: Calling on_field_name with data[19:27]
+2025-09-30 12:04:12,113 [DEBUG] python_multipart.multipart: Calling on_field_data with data[28:41]
+2025-09-30 12:04:12,113 [DEBUG] python_multipart.multipart: Calling on_field_end with no data
+2025-09-30 12:04:12,113 [DEBUG] python_multipart.multipart: Calling on_end with no data
+2025-09-30 12:04:12,113 [WARNING] mindestentinel.auth_manager: Anmeldeversuch für nicht existierenden Benutzer 'benni1233'.
+2025-09-30 12:07:11,506 [DEBUG] python_multipart.multipart: Calling on_field_start with no data
+2025-09-30 12:07:11,506 [DEBUG] python_multipart.multipart: Calling on_field_name with data[0:8]
+2025-09-30 12:07:11,507 [DEBUG] python_multipart.multipart: Calling on_field_data with data[9:14]
+2025-09-30 12:07:11,507 [DEBUG] python_multipart.multipart: Calling on_field_end with no data
+2025-09-30 12:07:11,507 [DEBUG] python_multipart.multipart: Calling on_field_start with no data
+2025-09-30 12:07:11,507 [DEBUG] python_multipart.multipart: Calling on_field_name with data[15:23]
+2025-09-30 12:07:11,507 [DEBUG] python_multipart.multipart: Calling on_field_data with data[24:35]
+2025-09-30 12:07:11,507 [DEBUG] python_multipart.multipart: Calling on_field_end with no data
+2025-09-30 12:07:11,507 [DEBUG] python_multipart.multipart: Calling on_end with no data
+2025-09-30 12:07:11,508 [WARNING] mindestentinel.auth_manager: Anmeldeversuch für nicht existierenden Benutzer 'admin'.
+2025-09-30 12:14:20,099 [INFO] mindestentinel.main: Received KeyboardInterrupt. Shutting down.
+2025-09-30 12:14:20,099 [INFO] mindestentinel.main: Deaktiviere autonomen Lernzyklus...
+2025-09-30 12:14:20,099 [INFO] mindestentinel.autonomous_loop: AutonomousLoop deaktiviert.
+2025-09-30 12:14:25,107 [INFO] mindestentinel.ai_engine: AIBrain gestoppt.
+2025-09-30 12:14:25,107 [INFO] mindestentinel.main: System shutdown complete.
+2025-09-30 12:16:36,426 [INFO] root: Logging konfiguriert. Logs werden gespeichert in: C:\Users\bkrie\Desktop\Mindestentinel\Mindestentinel - Alpha-Projekt build0015.3A\logs\mindestentinel_20250930.log
+2025-09-30 12:16:36,428 [INFO] mindestentinel.main: Initialisiere ModelManager...
+2025-09-30 12:16:36,646 [INFO] mindestentinel.model_manager: Modell 'tiny-llama' erfolgreich geladen.
+2025-09-30 12:16:36,647 [INFO] mindestentinel.model_manager: Geladen: 1 Modelle aus model_registry.json
+2025-09-30 12:16:36,647 [INFO] mindestentinel.model_manager: Starte Modellverzeichnis-Überwachung (Intervall: 60 Sekunden)...
+2025-09-30 12:16:36,648 [INFO] mindestentinel.model_manager: ModelManager initialisiert mit 1 Modellen aus data/models.
+2025-09-30 12:16:36,648 [INFO] mindestentinel.main: Initialisiere PluginManager...
+2025-09-30 12:16:36,648 [INFO] mindestentinel.main: Initialisiere RuleEngine...
+2025-09-30 12:16:36,651 [INFO] mindestentinel.rule_engine: 2 Regeln geladen aus config\rules.yaml
+2025-09-30 12:16:36,658 [INFO] mindestentinel.rule_engine: Regel-Signatur erfolgreich verifiziert
+2025-09-30 12:16:36,658 [INFO] mindestentinel.rule_engine: Starte Regeldatei-Überwachung (Intervall: 30 Sekunden)...
+2025-09-30 12:16:36,659 [INFO] mindestentinel.rule_engine: RuleEngine initialisiert mit 2 Regeln.
+2025-09-30 12:16:36,659 [INFO] mindestentinel.main: Initialisiere AIBrain...
+2025-09-30 12:16:36,659 [INFO] mindestentinel.ai_engine: AIBrain initialisiert.
+2025-09-30 12:16:36,660 [INFO] mindestentinel.main: knowledge_base nicht in AIBrain gefunden - initialisiere neu mit Pfad: C:\Users\bkrie\Desktop\Mindestentinel\Mindestentinel - Alpha-Projekt build0015.3A\data\knowledge\knowledge.db
+2025-09-30 12:16:36,670 [INFO] mindestentinel.knowledge_base: Datenbankstruktur initialisiert.
+2025-09-30 12:16:36,670 [INFO] mindestentinel.knowledge_base: Wissensdatenbank initialisiert: C:\Users\bkrie\Desktop\Mindestentinel\Mindestentinel - Alpha-Projekt build0015.3A\data\knowledge\knowledge.db
+2025-09-30 12:16:36,670 [INFO] mindestentinel.main: Initialisiere UserManager...
+2025-09-30 12:16:36,680 [INFO] mindestentinel.user_manager: UserManager initialisiert.
+2025-09-30 12:16:36,680 [INFO] mindestentinel.main: Initialisiere AuthManager...
+2025-09-30 12:16:36,689 [INFO] mindestentinel.auth_manager: AuthManager initialisiert.
+2025-09-30 12:16:36,902 [INFO] mindestentinel.user_manager: Benutzer 'admin' erstellt. (Admin)
+2025-09-30 12:16:36,902 [INFO] mindestentinel.main: Standard-Admin-Benutzer 'admin' erstellt
+2025-09-30 12:16:36,902 [INFO] mindestentinel.main: model_orchestrator nicht in AIBrain gefunden - initialisiere neu
+2025-09-30 12:16:36,902 [INFO] src.core.multi_model_orchestrator: MultiModelOrchestrator initialisiert.
+2025-09-30 12:16:36,902 [INFO] mindestentinel.main: rule_engine nicht in AIBrain gefunden - verwende vorinitialisierte Instanz
+2025-09-30 12:16:36,902 [INFO] mindestentinel.main: protection_module nicht in AIBrain gefunden - initialisiere neu mit rule_engine
+2025-09-30 12:16:36,903 [INFO] mindestentinel.main: system_monitor nicht in AIBrain gefunden - initialisiere neu
+2025-09-30 12:16:36,903 [INFO] src.core.system_monitor: SystemMonitor initialisiert.
+2025-09-30 12:16:36,903 [INFO] mindestentinel.main: Initialisiere ModelCloner...
+2025-09-30 12:16:36,903 [INFO] mindestentinel.model_cloner: ModelCloner initialisiert. Backup-Verzeichnis: data/models/backups
+2025-09-30 12:16:36,904 [INFO] mindestentinel.main: Initialisiere KnowledgeTransfer...
+2025-09-30 12:16:36,904 [INFO] mindestentinel.knowledge_transfer: KnowledgeTransfer initialisiert.
+2025-09-30 12:16:36,904 [INFO] mindestentinel.main: Initialisiere ModelTrainer...
+2025-09-30 12:16:36,904 [INFO] mindestentinel.model_trainer: ModelTrainer initialisiert.
+2025-09-30 12:16:36,904 [INFO] mindestentinel.main: Registriere 1 Modelle als Lehrer-Modelle: ['tiny-llama']
+2025-09-30 12:16:36,904 [INFO] src.core.multi_model_orchestrator: Lehrer-Modell registriert: tiny-llama
+2025-09-30 12:16:36,904 [INFO] mindestentinel.main: Initialisiere den autonomen Lernzyklus...
+2025-09-30 12:16:36,904 [INFO] mindestentinel.autonomous_loop: AutonomousLoop initialisiert. Warte auf Aktivierung...
+2025-09-30 12:16:36,904 [INFO] mindestentinel.main: Autonomer Lernzyklus erfolgreich initialisiert
+2025-09-30 12:16:36,985 [INFO] mindestentinel.main: Plugins auto-loaded: 5
+2025-09-30 12:16:36,985 [INFO] mindestentinel.ai_engine: AIBrain gestartet.
+2025-09-30 12:16:36,985 [INFO] mindestentinel.main: Aktiviere autonomen Lernzyklus...
+2025-09-30 12:16:36,986 [INFO] mindestentinel.autonomous_loop: AutonomousLoop aktiviert. Beginne mit Lernzyklen...
+2025-09-30 12:16:36,986 [INFO] mindestentinel.autonomous_loop: Beginne Hintergrundloop für autonomen Lernzyklus.
+2025-09-30 12:16:36,993 [INFO] mindestentinel.main: Starting REST API on 0.0.0.0:8000
+2025-09-30 12:18:03,601 [INFO] mindestentinel.user_manager: Benutzer 'admin' aktualisiert.
+2025-09-30 12:18:03,602 [INFO] mindestentinel.auth_manager: Benutzer 'admin' erfolgreich authentifiziert
+2025-09-30 12:18:03,613 [INFO] mindestentinel.auth_manager: API-Schlüssel für Benutzer 'admin' generiert
+2025-09-30 12:18:37,641 [INFO] mindestentinel.main: Received KeyboardInterrupt. Shutting down.
+2025-09-30 12:18:37,641 [INFO] mindestentinel.main: Deaktiviere autonomen Lernzyklus...
+2025-09-30 12:18:37,641 [INFO] mindestentinel.autonomous_loop: AutonomousLoop deaktiviert.
+2025-09-30 12:18:42,649 [INFO] mindestentinel.ai_engine: AIBrain gestoppt.
+2025-09-30 12:18:42,649 [INFO] mindestentinel.main: System shutdown complete.

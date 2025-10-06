@@ -1,0 +1,210 @@
+2025-10-01 10:50:00,696 [INFO] root: Logging konfiguriert. Logs werden gespeichert in: C:\Users\bkrie\Desktop\Mindestentinel\Mindestentinel - Alpha-Projekt build0015.4A\logs\mindestentinel_20251001.log
+2025-10-01 10:50:39,604 [INFO] root: Logging konfiguriert. Logs werden gespeichert in: C:\Users\bkrie\Desktop\Mindestentinel\Mindestentinel - Alpha-Projekt build0015.4A\logs\mindestentinel_20251001.log
+2025-10-01 10:50:39,605 [INFO] mindestentinel.main: Initialisiere ModelManager...
+2025-10-01 10:50:40,087 [INFO] mindestentinel.model_manager: Modell 'tiny-llama' erfolgreich geladen.
+2025-10-01 10:50:40,094 [INFO] mindestentinel.model_manager: Geladen: 1 Modelle aus model_registry.json
+2025-10-01 10:50:40,094 [INFO] mindestentinel.model_manager: Starte Modellverzeichnis-Überwachung (Intervall: 60 Sekunden)...
+2025-10-01 10:50:40,095 [INFO] mindestentinel.model_manager: ModelManager initialisiert mit 1 Modellen aus data/models.
+2025-10-01 10:50:40,095 [INFO] mindestentinel.main: Initialisiere PluginManager...
+2025-10-01 10:50:40,095 [INFO] mindestentinel.main: Initialisiere RuleEngine...
+2025-10-01 10:50:40,104 [INFO] mindestentinel.rule_engine: 2 Regeln geladen aus config\rules.yaml
+2025-10-01 10:50:40,130 [INFO] mindestentinel.rule_engine: Regel-Signatur erfolgreich verifiziert
+2025-10-01 10:50:40,130 [INFO] mindestentinel.rule_engine: Starte Regeldatei-Überwachung (Intervall: 30 Sekunden)...
+2025-10-01 10:50:40,131 [INFO] mindestentinel.rule_engine: RuleEngine initialisiert mit 2 Regeln.
+2025-10-01 10:50:40,131 [INFO] mindestentinel.main: Initialisiere AIBrain...
+2025-10-01 10:50:40,131 [INFO] mindestentinel.ai_engine: AIBrain initialisiert.
+2025-10-01 10:50:40,132 [INFO] mindestentinel.main: knowledge_base nicht in AIBrain gefunden - initialisiere neu mit Pfad: C:\Users\bkrie\Desktop\Mindestentinel\Mindestentinel - Alpha-Projekt build0015.4A\data\knowledge\knowledge.db
+2025-10-01 10:50:40,141 [INFO] mindestentinel.knowledge_base: Datenbankstruktur initialisiert.
+2025-10-01 10:50:40,142 [INFO] mindestentinel.knowledge_base: Wissensdatenbank initialisiert: C:\Users\bkrie\Desktop\Mindestentinel\Mindestentinel - Alpha-Projekt build0015.4A\data\knowledge\knowledge.db
+2025-10-01 10:50:40,142 [INFO] mindestentinel.main: Initialisiere UserManager...
+2025-10-01 10:50:40,143 [INFO] mindestentinel.user_manager: UserManager initialisiert.
+2025-10-01 10:50:40,143 [INFO] mindestentinel.main: Initialisiere AuthManager...
+2025-10-01 10:50:40,144 [INFO] mindestentinel.auth_manager: AuthManager initialisiert.
+2025-10-01 10:50:40,144 [INFO] mindestentinel.main: Standard-Admin-Benutzer 'admin' existiert bereits
+2025-10-01 10:50:40,144 [INFO] mindestentinel.main: model_orchestrator nicht in AIBrain gefunden - initialisiere neu
+2025-10-01 10:50:40,145 [INFO] src.core.multi_model_orchestrator: MultiModelOrchestrator initialisiert.
+2025-10-01 10:50:40,145 [INFO] mindestentinel.main: rule_engine nicht in AIBrain gefunden - verwende vorinitialisierte Instanz
+2025-10-01 10:50:40,145 [INFO] mindestentinel.main: protection_module nicht in AIBrain gefunden - initialisiere neu mit rule_engine
+2025-10-01 10:50:40,145 [INFO] mindestentinel.main: system_monitor nicht in AIBrain gefunden - initialisiere neu
+2025-10-01 10:50:40,145 [INFO] src.core.system_monitor: SystemMonitor initialisiert.
+2025-10-01 10:50:40,145 [INFO] mindestentinel.main: Initialisiere ModelCloner...
+2025-10-01 10:50:40,146 [INFO] mindestentinel.model_cloner: ModelCloner initialisiert. Backup-Verzeichnis: data/models/backups
+2025-10-01 10:50:40,146 [INFO] mindestentinel.main: Initialisiere KnowledgeTransfer...
+2025-10-01 10:50:40,146 [INFO] mindestentinel.knowledge_transfer: KnowledgeTransfer initialisiert.
+2025-10-01 10:50:40,146 [INFO] mindestentinel.main: Initialisiere ModelTrainer...
+2025-10-01 10:50:40,146 [INFO] mindestentinel.model_trainer: ModelTrainer initialisiert.
+2025-10-01 10:50:40,146 [INFO] mindestentinel.main: Registriere 1 Modelle als Lehrer-Modelle: ['tiny-llama']
+2025-10-01 10:50:40,146 [INFO] src.core.multi_model_orchestrator: Lehrer-Modell registriert: tiny-llama
+2025-10-01 10:50:40,146 [INFO] mindestentinel.main: Initialisiere den autonomen Lernzyklus...
+2025-10-01 10:50:40,146 [INFO] mindestentinel.autonomous_loop: AutonomousLoop initialisiert. Warte auf Aktivierung...
+2025-10-01 10:50:40,146 [INFO] mindestentinel.main: Autonomer Lernzyklus erfolgreich initialisiert
+2025-10-01 10:50:40,874 [INFO] mindestentinel.main: Plugins auto-loaded: 5
+2025-10-01 10:50:40,877 [INFO] mindestentinel.ai_engine: AIBrain gestartet.
+2025-10-01 10:50:40,877 [INFO] mindestentinel.main: Aktiviere autonomen Lernzyklus...
+2025-10-01 10:50:40,877 [INFO] mindestentinel.autonomous_loop: AutonomousLoop aktiviert. Beginne mit Lernzyklen...
+2025-10-01 10:50:40,878 [INFO] mindestentinel.autonomous_loop: Beginne Hintergrundloop für autonomen Lernzyklus.
+2025-10-01 10:50:40,886 [INFO] mindestentinel.main: Starting REST API on 0.0.0.0:8000
+2025-10-01 10:50:49,788 [INFO] mindestentinel.main: Received KeyboardInterrupt. Shutting down.
+2025-10-01 10:50:49,788 [INFO] mindestentinel.main: Deaktiviere autonomen Lernzyklus...
+2025-10-01 10:50:49,788 [INFO] mindestentinel.autonomous_loop: AutonomousLoop deaktiviert.
+2025-10-01 10:50:54,792 [INFO] mindestentinel.ai_engine: AIBrain gestoppt.
+2025-10-01 10:50:54,793 [INFO] mindestentinel.main: System shutdown complete.
+2025-10-01 11:22:32,374 [INFO] mindestentinel.config: Logging konfiguriert. Logs werden gespeichert in: logs
+2025-10-01 11:22:32,375 [INFO] mindestentinel.config: Logging konfiguriert. Logs werden gespeichert in: logs
+2025-10-01 11:22:32,376 [INFO] mindestentinel.main: Initialisiere ModelManager...
+2025-10-01 11:22:32,590 [INFO] mindestentinel.model_manager: Modell 'tiny-llama' erfolgreich geladen.
+2025-10-01 11:22:32,590 [INFO] mindestentinel.model_manager: Geladen: 1 Modelle aus model_registry.json
+2025-10-01 11:22:32,591 [INFO] mindestentinel.model_manager: Starte Modellverzeichnis-Überwachung (Intervall: 60 Sekunden)...
+2025-10-01 11:22:32,591 [INFO] mindestentinel.model_manager: ModelManager initialisiert mit 1 Modellen aus data/models.
+2025-10-01 11:22:32,591 [INFO] mindestentinel.main: Initialisiere PluginManager...
+2025-10-01 11:22:32,592 [INFO] mindestentinel.main: Initialisiere RuleEngine...
+2025-10-01 11:22:32,594 [INFO] mindestentinel.rule_engine: 2 Regeln geladen aus config\rules.yaml
+2025-10-01 11:22:32,594 [INFO] mindestentinel.rule_engine: Regel-Signatur erfolgreich verifiziert
+2025-10-01 11:22:32,594 [INFO] mindestentinel.rule_engine: Starte Regeldatei-Überwachung (Intervall: 30 Sekunden)...
+2025-10-01 11:22:32,595 [INFO] mindestentinel.rule_engine: RuleEngine initialisiert mit 2 Regeln.
+2025-10-01 11:22:32,595 [INFO] mindestentinel.main: Initialisiere AIBrain...
+2025-10-01 11:22:32,595 [INFO] mindestentinel.ai_engine: AIBrain initialisiert.
+2025-10-01 11:22:32,596 [INFO] mindestentinel.main: knowledge_base nicht in AIBrain gefunden - initialisiere neu mit Pfad: C:\Users\bkrie\Desktop\Mindestentinel\Mindestentinel - Alpha-Projekt build0015.4A\data\knowledge\knowledge.db
+2025-10-01 11:22:32,597 [INFO] mindestentinel.knowledge_base: Datenbankstruktur initialisiert.
+2025-10-01 11:22:32,598 [INFO] mindestentinel.knowledge_base: Wissensdatenbank initialisiert: C:\Users\bkrie\Desktop\Mindestentinel\Mindestentinel - Alpha-Projekt build0015.4A\data\knowledge\knowledge.db
+2025-10-01 11:22:32,598 [INFO] mindestentinel.main: Initialisiere UserManager...
+2025-10-01 11:22:32,598 [INFO] mindestentinel.user_manager: UserManager initialisiert.
+2025-10-01 11:22:32,599 [INFO] mindestentinel.main: Initialisiere AuthManager...
+2025-10-01 11:22:32,599 [INFO] mindestentinel.auth_manager: AuthManager initialisiert.
+2025-10-01 11:22:32,600 [INFO] mindestentinel.main: Standard-Admin-Benutzer 'admin' existiert bereits
+2025-10-01 11:22:32,600 [INFO] mindestentinel.main: model_orchestrator nicht in AIBrain gefunden - initialisiere neu
+2025-10-01 11:22:32,600 [INFO] src.core.multi_model_orchestrator: MultiModelOrchestrator initialisiert.
+2025-10-01 11:22:32,600 [INFO] mindestentinel.main: rule_engine nicht in AIBrain gefunden - verwende vorinitialisierte Instanz
+2025-10-01 11:22:32,601 [INFO] mindestentinel.main: protection_module nicht in AIBrain gefunden - initialisiere neu mit rule_engine
+2025-10-01 11:22:32,601 [INFO] mindestentinel.main: system_monitor nicht in AIBrain gefunden - initialisiere neu
+2025-10-01 11:22:32,601 [INFO] src.core.system_monitor: SystemMonitor initialisiert.
+2025-10-01 11:22:32,601 [INFO] mindestentinel.main: Initialisiere ModelCloner...
+2025-10-01 11:22:32,601 [INFO] mindestentinel.model_cloner: ModelCloner initialisiert. Backup-Verzeichnis: data/models/backups
+2025-10-01 11:22:32,601 [INFO] mindestentinel.main: Initialisiere KnowledgeTransfer...
+2025-10-01 11:22:32,602 [INFO] mindestentinel.knowledge_transfer: KnowledgeTransfer initialisiert.
+2025-10-01 11:22:32,602 [INFO] mindestentinel.main: Initialisiere ModelTrainer...
+2025-10-01 11:22:32,602 [INFO] mindestentinel.model_trainer: ModelTrainer initialisiert.
+2025-10-01 11:22:32,602 [INFO] mindestentinel.main: Registriere 1 Modelle als Lehrer-Modelle: ['tiny-llama']
+2025-10-01 11:22:32,602 [INFO] src.core.multi_model_orchestrator: Lehrer-Modell registriert: tiny-llama
+2025-10-01 11:22:32,602 [INFO] mindestentinel.main: Initialisiere den autonomen Lernzyklus...
+2025-10-01 11:22:32,602 [INFO] mindestentinel.autonomous_loop: AutonomousLoop initialisiert. Warte auf Aktivierung...
+2025-10-01 11:22:32,602 [INFO] mindestentinel.main: Autonomer Lernzyklus erfolgreich initialisiert
+2025-10-01 11:22:32,673 [INFO] mindestentinel.main: Plugins auto-loaded: 5
+2025-10-01 11:22:32,673 [INFO] mindestentinel.ai_engine: AIBrain gestartet.
+2025-10-01 11:22:32,674 [INFO] mindestentinel.main: Aktiviere autonomen Lernzyklus...
+2025-10-01 11:22:32,674 [INFO] mindestentinel.autonomous_loop: AutonomousLoop aktiviert. Beginne mit Lernzyklen...
+2025-10-01 11:22:32,674 [INFO] mindestentinel.autonomous_loop: Beginne Hintergrundloop für autonomen Lernzyklus.
+2025-10-01 11:22:32,682 [INFO] mindestentinel.main: Starting REST API on 0.0.0.0:8000
+2025-10-01 11:27:26,921 [INFO] mindestentinel.main: Received KeyboardInterrupt. Shutting down.
+2025-10-01 11:27:26,921 [INFO] mindestentinel.main: Deaktiviere autonomen Lernzyklus...
+2025-10-01 11:27:26,921 [INFO] mindestentinel.autonomous_loop: AutonomousLoop deaktiviert.
+2025-10-01 11:27:31,930 [INFO] mindestentinel.ai_engine: AIBrain gestoppt.
+2025-10-01 11:27:31,935 [INFO] mindestentinel.main: System shutdown complete.
+2025-10-01 11:31:34,394 [INFO] mindestentinel.config: Logging konfiguriert. Logs werden gespeichert in: logs
+2025-10-01 11:31:34,395 [INFO] mindestentinel.config: Logging konfiguriert. Logs werden gespeichert in: logs
+2025-10-01 11:31:34,396 [INFO] mindestentinel.main: Initialisiere ModelManager...
+2025-10-01 11:31:34,619 [INFO] mindestentinel.model_manager: Modell 'tiny-llama' erfolgreich geladen.
+2025-10-01 11:31:34,620 [INFO] mindestentinel.model_manager: Geladen: 1 Modelle aus model_registry.json
+2025-10-01 11:31:34,620 [INFO] mindestentinel.model_manager: Starte Modellverzeichnis-Überwachung (Intervall: 60 Sekunden)...
+2025-10-01 11:31:34,621 [INFO] mindestentinel.model_manager: ModelManager initialisiert mit 1 Modellen aus data/models.
+2025-10-01 11:31:34,621 [INFO] mindestentinel.main: Initialisiere PluginManager...
+2025-10-01 11:31:34,621 [INFO] mindestentinel.main: Initialisiere RuleEngine...
+2025-10-01 11:31:34,623 [INFO] mindestentinel.rule_engine: 2 Regeln geladen aus config\rules.yaml
+2025-10-01 11:31:34,624 [INFO] mindestentinel.rule_engine: Regel-Signatur erfolgreich verifiziert
+2025-10-01 11:31:34,624 [INFO] mindestentinel.rule_engine: Starte Regeldatei-Überwachung (Intervall: 30 Sekunden)...
+2025-10-01 11:31:34,624 [INFO] mindestentinel.rule_engine: RuleEngine initialisiert mit 2 Regeln.
+2025-10-01 11:31:34,624 [INFO] mindestentinel.main: Initialisiere AIBrain...
+2025-10-01 11:31:34,625 [INFO] mindestentinel.ai_engine: AIBrain initialisiert.
+2025-10-01 11:31:34,625 [INFO] mindestentinel.main: knowledge_base nicht in AIBrain gefunden - initialisiere neu mit Pfad: C:\Users\bkrie\Desktop\Mindestentinel\Mindestentinel - Alpha-Projekt build0015.4A\data\knowledge\knowledge.db
+2025-10-01 11:31:34,627 [INFO] mindestentinel.knowledge_base: Datenbankstruktur initialisiert.
+2025-10-01 11:31:34,627 [INFO] mindestentinel.knowledge_base: Wissensdatenbank initialisiert: C:\Users\bkrie\Desktop\Mindestentinel\Mindestentinel - Alpha-Projekt build0015.4A\data\knowledge\knowledge.db
+2025-10-01 11:31:34,627 [INFO] mindestentinel.main: Initialisiere UserManager...
+2025-10-01 11:31:34,628 [INFO] mindestentinel.user_manager: UserManager initialisiert.
+2025-10-01 11:31:34,628 [INFO] mindestentinel.main: Initialisiere AuthManager...
+2025-10-01 11:31:34,629 [INFO] mindestentinel.auth_manager: AuthManager initialisiert.
+2025-10-01 11:31:34,630 [INFO] mindestentinel.main: Standard-Admin-Benutzer 'admin' existiert bereits
+2025-10-01 11:31:34,630 [INFO] mindestentinel.main: model_orchestrator nicht in AIBrain gefunden - initialisiere neu
+2025-10-01 11:31:34,630 [INFO] src.core.multi_model_orchestrator: MultiModelOrchestrator initialisiert.
+2025-10-01 11:31:34,630 [INFO] mindestentinel.main: rule_engine nicht in AIBrain gefunden - verwende vorinitialisierte Instanz
+2025-10-01 11:31:34,630 [INFO] mindestentinel.main: protection_module nicht in AIBrain gefunden - initialisiere neu mit rule_engine
+2025-10-01 11:31:34,630 [INFO] mindestentinel.main: system_monitor nicht in AIBrain gefunden - initialisiere neu
+2025-10-01 11:31:34,630 [INFO] src.core.system_monitor: SystemMonitor initialisiert.
+2025-10-01 11:31:34,630 [INFO] mindestentinel.main: Initialisiere ModelCloner...
+2025-10-01 11:31:34,631 [INFO] mindestentinel.model_cloner: ModelCloner initialisiert. Backup-Verzeichnis: data/models/backups
+2025-10-01 11:31:34,631 [INFO] mindestentinel.main: Initialisiere KnowledgeTransfer...
+2025-10-01 11:31:34,631 [INFO] mindestentinel.knowledge_transfer: KnowledgeTransfer initialisiert.
+2025-10-01 11:31:34,631 [INFO] mindestentinel.main: Initialisiere ModelTrainer...
+2025-10-01 11:31:34,631 [INFO] mindestentinel.model_trainer: ModelTrainer initialisiert.
+2025-10-01 11:31:34,631 [INFO] mindestentinel.main: Registriere 1 Modelle als Lehrer-Modelle: ['tiny-llama']
+2025-10-01 11:31:34,631 [INFO] src.core.multi_model_orchestrator: Lehrer-Modell registriert: tiny-llama
+2025-10-01 11:31:34,631 [INFO] mindestentinel.main: Initialisiere den autonomen Lernzyklus...
+2025-10-01 11:31:34,632 [INFO] mindestentinel.autonomous_loop: AutonomousLoop initialisiert. Warte auf Aktivierung...
+2025-10-01 11:31:34,632 [INFO] mindestentinel.main: Autonomer Lernzyklus erfolgreich initialisiert
+2025-10-01 11:31:34,704 [INFO] mindestentinel.main: Plugins auto-loaded: 5
+2025-10-01 11:31:34,704 [INFO] mindestentinel.ai_engine: AIBrain gestartet.
+2025-10-01 11:31:34,704 [INFO] mindestentinel.main: Aktiviere autonomen Lernzyklus...
+2025-10-01 11:31:34,705 [INFO] mindestentinel.autonomous_loop: AutonomousLoop aktiviert. Beginne mit Lernzyklen...
+2025-10-01 11:31:34,705 [INFO] mindestentinel.autonomous_loop: Beginne Hintergrundloop für autonomen Lernzyklus.
+2025-10-01 11:31:34,713 [INFO] mindestentinel.main: Starting REST API on 0.0.0.0:8000
+2025-10-01 11:38:31,177 [INFO] mindestentinel.user_manager: Benutzer 'admin' aktualisiert.
+2025-10-01 11:38:31,177 [INFO] mindestentinel.auth_manager: Benutzer 'admin' erfolgreich authentifiziert
+2025-10-01 11:48:10,283 [INFO] mindestentinel.main: Received KeyboardInterrupt. Shutting down.
+2025-10-01 11:48:10,284 [INFO] mindestentinel.main: Deaktiviere autonomen Lernzyklus...
+2025-10-01 11:48:10,284 [INFO] mindestentinel.autonomous_loop: AutonomousLoop deaktiviert.
+2025-10-01 11:48:15,292 [INFO] mindestentinel.ai_engine: AIBrain gestoppt.
+2025-10-01 11:48:15,292 [INFO] mindestentinel.main: System shutdown complete.
+2025-10-01 16:42:21,106 [INFO] mindestentinel.config: Logging konfiguriert. Logs werden gespeichert in: logs
+2025-10-01 16:42:21,152 [INFO] mindestentinel.config: Logging konfiguriert. Logs werden gespeichert in: logs
+2025-10-01 16:42:57,678 [INFO] mindestentinel.config: Logging konfiguriert. Logs werden gespeichert in: logs
+2025-10-01 16:42:57,679 [INFO] mindestentinel.config: Logging konfiguriert. Logs werden gespeichert in: logs
+2025-10-01 16:42:57,680 [INFO] mindestentinel.main: Initialisiere ModelManager...
+2025-10-01 16:43:04,666 [INFO] mindestentinel.model_manager: Modell 'tiny-llama' erfolgreich geladen.
+2025-10-01 16:43:04,673 [INFO] mindestentinel.model_manager: Geladen: 1 Modelle aus model_registry.json
+2025-10-01 16:43:04,673 [INFO] mindestentinel.model_manager: Starte Modellverzeichnis-Überwachung (Intervall: 60 Sekunden)...
+2025-10-01 16:43:04,686 [INFO] mindestentinel.model_manager: ModelManager initialisiert mit 1 Modellen aus data/models.
+2025-10-01 16:43:04,686 [INFO] mindestentinel.main: Initialisiere PluginManager...
+2025-10-01 16:43:04,686 [INFO] mindestentinel.main: Initialisiere RuleEngine...
+2025-10-01 16:43:04,709 [INFO] mindestentinel.rule_engine: 2 Regeln geladen aus config\rules.yaml
+2025-10-01 16:43:04,812 [INFO] mindestentinel.rule_engine: Regel-Signatur erfolgreich verifiziert
+2025-10-01 16:43:04,812 [INFO] mindestentinel.rule_engine: Starte Regeldatei-Überwachung (Intervall: 30 Sekunden)...
+2025-10-01 16:43:04,813 [INFO] mindestentinel.rule_engine: RuleEngine initialisiert mit 2 Regeln.
+2025-10-01 16:43:04,813 [INFO] mindestentinel.main: Initialisiere AIBrain...
+2025-10-01 16:43:04,814 [INFO] mindestentinel.ai_engine: AIBrain initialisiert.
+2025-10-01 16:43:04,815 [INFO] mindestentinel.main: knowledge_base nicht in AIBrain gefunden - initialisiere neu mit Pfad: C:\Users\bkrie\Desktop\Mindestentinel\Mindestentinel - Alpha-Projekt build0015.4A\data\knowledge\knowledge.db
+2025-10-01 16:43:05,296 [INFO] mindestentinel.knowledge_base: Datenbankstruktur initialisiert.
+2025-10-01 16:43:05,296 [INFO] mindestentinel.knowledge_base: Wissensdatenbank initialisiert: C:\Users\bkrie\Desktop\Mindestentinel\Mindestentinel - Alpha-Projekt build0015.4A\data\knowledge\knowledge.db
+2025-10-01 16:43:05,296 [INFO] mindestentinel.main: Initialisiere UserManager...
+2025-10-01 16:43:05,297 [INFO] mindestentinel.user_manager: UserManager initialisiert.
+2025-10-01 16:43:05,297 [INFO] mindestentinel.main: Initialisiere AuthManager...
+2025-10-01 16:43:05,299 [INFO] mindestentinel.auth_manager: AuthManager initialisiert.
+2025-10-01 16:43:05,300 [INFO] mindestentinel.main: Standard-Admin-Benutzer 'admin' existiert bereits
+2025-10-01 16:43:05,300 [INFO] mindestentinel.main: model_orchestrator nicht in AIBrain gefunden - initialisiere neu
+2025-10-01 16:43:05,300 [INFO] src.core.multi_model_orchestrator: MultiModelOrchestrator initialisiert.
+2025-10-01 16:43:05,300 [INFO] mindestentinel.main: rule_engine nicht in AIBrain gefunden - verwende vorinitialisierte Instanz
+2025-10-01 16:43:05,300 [INFO] mindestentinel.main: protection_module nicht in AIBrain gefunden - initialisiere neu mit rule_engine
+2025-10-01 16:43:05,300 [INFO] mindestentinel.main: system_monitor nicht in AIBrain gefunden - initialisiere neu
+2025-10-01 16:43:05,300 [INFO] src.core.system_monitor: SystemMonitor initialisiert.
+2025-10-01 16:43:05,300 [INFO] mindestentinel.main: Initialisiere ModelCloner...
+2025-10-01 16:43:05,301 [INFO] mindestentinel.model_cloner: ModelCloner initialisiert. Backup-Verzeichnis: data/models/backups
+2025-10-01 16:43:05,301 [INFO] mindestentinel.main: Initialisiere KnowledgeTransfer...
+2025-10-01 16:43:05,301 [INFO] mindestentinel.knowledge_transfer: KnowledgeTransfer initialisiert.
+2025-10-01 16:43:05,301 [INFO] mindestentinel.main: Initialisiere ModelTrainer...
+2025-10-01 16:43:05,301 [INFO] mindestentinel.model_trainer: ModelTrainer initialisiert.
+2025-10-01 16:43:05,301 [INFO] mindestentinel.main: Registriere 1 Modelle als Lehrer-Modelle: ['tiny-llama']
+2025-10-01 16:43:05,301 [INFO] src.core.multi_model_orchestrator: Lehrer-Modell registriert: tiny-llama
+2025-10-01 16:43:05,302 [INFO] mindestentinel.main: Initialisiere den autonomen Lernzyklus...
+2025-10-01 16:43:05,302 [INFO] mindestentinel.autonomous_loop: AutonomousLoop initialisiert. Warte auf Aktivierung...
+2025-10-01 16:43:05,302 [INFO] mindestentinel.main: Autonomer Lernzyklus erfolgreich initialisiert
+2025-10-01 16:43:05,551 [INFO] mindestentinel.main: Plugins auto-loaded: 5
+2025-10-01 16:43:05,551 [INFO] mindestentinel.ai_engine: AIBrain gestartet.
+2025-10-01 16:43:05,552 [INFO] mindestentinel.main: Aktiviere autonomen Lernzyklus...
+2025-10-01 16:43:05,552 [INFO] mindestentinel.autonomous_loop: AutonomousLoop aktiviert. Beginne mit Lernzyklen...
+2025-10-01 16:43:05,552 [INFO] mindestentinel.autonomous_loop: Beginne Hintergrundloop für autonomen Lernzyklus.
+2025-10-01 16:43:05,552 [CRITICAL] mindestentinel.main: Kritischer Fehler im Hauptprogramm: create_ws_app() takes 1 positional argument but 2 were given
+Traceback (most recent call last):
+  File "C:\Users\bkrie\Desktop\Mindestentinel\Mindestentinel - Alpha-Projekt build0015.4A\src\main.py", line 387, in <module>
+    main()
+    ~~~~^^
+  File "C:\Users\bkrie\Desktop\Mindestentinel\Mindestentinel - Alpha-Projekt build0015.4A\src\main.py", line 342, in main
+    app = create_ws_app(brain, auth_manager)
+TypeError: create_ws_app() takes 1 positional argument but 2 were given
