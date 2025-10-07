@@ -1,6 +1,6 @@
 # Mindestentinel — Alpha
 
-Mindestentinel ist ein modulares Python-Framework zur Entwicklung einer selbstlernenden KI-Plattform (Alpha) Build0015.5A.
+Mindestentinel ist ein modulares Python-Framework zur Entwicklung einer selbstlernenden KI-Plattform (Alpha).
 
 ## Quickstart
 
@@ -47,5 +47,4 @@ bash
 Kopieren
 Bearbeiten
 # venv aktivieren
-
 python -m unittest discover -s tests
