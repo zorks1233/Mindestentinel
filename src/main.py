@@ -180,6 +180,37 @@ def build_components(enable_autonomy: bool = False):
     except AttributeError:
         logger.warning("AIBrain hat kein rule_engine Attribut")
     
+    # Initialisiere ProtectionModule
+    logger.info("Initialisiere ProtectionModule...")
+    try:
+        from core.protection_module import ProtectionModule
+        protection_module = ProtectionModule(knowledge_base=kb, rule_engine=rule_engine)
+        logger.info("ProtectionModule initialisiert.")
+    except ImportError:
+        try:
+            sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "core"))
+            from protection_module import ProtectionModule
+            protection_module = ProtectionModule(knowledge_base=kb, rule_engine=rule_engine)
+            logger.info("ProtectionModule initialisiert.")
+        except Exception as e:
+            logger.error(f"Konnte ProtectionModule nicht importieren: {str(e)}")
+            # Ersatz-ProtectionModule
+            class SimpleProtectionModule:
+                def __init__(self, knowledge_base=None, rule_engine=None):
+                    self.kb = knowledge_base
+                    self.rule_engine = rule_engine
+                
+                def verify_integrity(self, data):
+                    # Einfache Überprüfung - in Produktion würde hier eine echte Integritätsprüfung erfolgen
+                    return True
+                
+                def sanitize_input(self, input_data):
+                    # Einfache Bereinigung - in Produktion würde hier eine echte Bereinigung erfolgen
+                    return input_data
+            
+            protection_module = SimpleProtectionModule(knowledge_base=kb, rule_engine=rule_engine)
+            logger.warning("Verwende Simulations-ProtectionModule als Ersatz")
+    
     # Initialisiere UserManager
     logger.info("Initialisiere UserManager...")
     try:
@@ -282,7 +313,11 @@ def build_components(enable_autonomy: bool = False):
     logger.info("Initialisiere KnowledgeTransfer...")
     try:
         from core.knowledge_transfer import KnowledgeTransfer
-        knowledge_transfer = KnowledgeTransfer()
+        knowledge_transfer = KnowledgeTransfer(
+            knowledge_base=kb,
+            rule_engine=rule_engine,
+            protection_module=protection_module
+        )
         logger.info("KnowledgeTransfer initialisiert.")
     except ImportError:
         logger.warning("KnowledgeTransfer nicht gefunden, überspringe")
