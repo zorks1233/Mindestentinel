@@ -1,158 +1,133 @@
 # src/core/multi_model_orchestrator.py
 """
-MultiModelOrchestrator - Koordiniert die Interaktion mit verschiedenen LLMs
+multi_model_orchestrator.py - Koordiniert die Interaktion zwischen Lehrer- und Schülermodellen
+
+Diese Datei implementiert den Multi-Model-Orchestrator für das System.
 """
 
 import logging
-from typing import Dict, List, Any, Optional
+from typing import List, Dict, Any, Optional
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("mindestentinel.multi_model_orchestrator")
 
 class MultiModelOrchestrator:
-    """
-    Koordiniert die Interaktion mit verschiedenen LLMs (lokale und externe Modelle)
-    """
+    """Koordiniert die Interaktion zwischen verschiedenen Modellen"""
     
-    def __init__(self, model_manager=None):
+    def __init__(self, model_manager):
+        """Initialisiert den Multi-Model-Orchestrator
+        
+        Args:
+            model_manager: Die ModelManager-Instanz
+        """
         self.model_manager = model_manager
-        self.teachers = []  # Lehrer-Modelle für Wissensakquisition
-        self.students = []  # Studenten-Modelle für lokales Lernen
+        self.teacher_models = []
+        self.student_models = []
         logger.info("MultiModelOrchestrator initialisiert.")
     
-    def inject_model_manager(self, model_manager):
-        """Injiziert den ModelManager"""
-        self.model_manager = model_manager
-        logger.debug("ModelManager injiziert")
-    
     def register_teacher_model(self, model_name: str):
-        """Registriert ein Modell als Lehrer-Modell"""
-        if model_name not in self.teachers:
-            self.teachers.append(model_name)
+        """Registriert ein Modell als Lehrer-Modell
+        
+        Args:
+            model_name: Name des Modells
+        """
+        if model_name not in self.teacher_models:
+            self.teacher_models.append(model_name)
             logger.info(f"Lehrer-Modell registriert: {model_name}")
     
     def register_student_model(self, model_name: str):
-        """Registriert ein Modell als Studenten-Modell"""
-        if model_name not in self.students:
-            self.students.append(model_name)
-            logger.info(f"Studenten-Modell registriert: {model_name}")
+        """Registriert ein Modell als Schüler-Modell
+        
+        Args:
+            model_name: Name des Modells
+        """
+        if model_name not in self.student_models:
+            self.student_models.append(model_name)
+            logger.info(f"Schüler-Modell registriert: {model_name}")
     
     def get_teacher_models(self) -> List[str]:
-        """Gibt alle registrierten Lehrer-Modelle zurück"""
-        return self.teachers
+        """Holt alle registrierten Lehrer-Modelle"""
+        return self.teacher_models
     
     def get_student_models(self) -> List[str]:
-        """Gibt alle registrierten Studenten-Modelle zurück"""
-        return self.students
+        """Holt alle registrierten Schüler-Modelle"""
+        return self.student_models
     
-    def query_models_batch(self, model_names: List[str], prompt: str, timeout: float = 30.0) -> Dict[str, str]:
+    def get_active_models(self) -> List[str]:
+        """Holt alle aktiven Modelle (Lehrer + Schüler)"""
+        return list(set(self.teacher_models + self.student_models))
+    
+    def query(self, model_name: str, prompt: str, max_tokens: int = 512) -> str:
         """
-        Fragt mehrere Modelle synchron mit demselben Prompt ab.
+        Fragt ein spezifisches Modell mit einer Benutzeranfrage
         
         Args:
-            model_names: Liste der Modellnamen
-            prompt: Der zu verarbeitende Prompt
-            timeout: Timeout für jede Abfrage
+            model_name: Name des Modells
+            prompt: Die Benutzeranfrage
+            max_tokens: Maximale Anzahl der Tokens für die Antwort
             
         Returns:
-            Dictionary mit Modellname -> Antwort
+            str: Die Modellantwort
         """
-        results = {}
-        if not self.model_manager:
-            logger.error("Kein ModelManager injiziert")
-            return results
+        try:
+            logger.info(f"Frage {model_name} mit Prompt: {prompt[:50]}...")
             
-        for model_name in model_names:
-            try:
-                response = self.model_manager.query_model(model_name, prompt)
-                results[model_name] = response
-                logger.debug(f"Antwort von {model_name}: {response[:100]}...")
-            except Exception as e:
-                logger.error(f"Fehler bei Abfrage von {model_name}: {str(e)}")
-        
-        return results
+            # Hole das Modell vom ModelManager
+            model = self.model_manager.get_model(model_name)
+            if not model:
+                logger.error(f"Modell {model_name} nicht gefunden")
+                return "Entschuldigung, ich konnte diese Anfrage nicht verarbeiten."
+            
+            # Generiere die Antwort
+            response = model.generate(
+                prompt,
+                max_new_tokens=max_tokens,
+                do_sample=True,
+                temperature=0.7,
+                top_p=0.95
+            )
+            
+            # Extrahiere den generierten Text
+            if hasattr(response, 'generated_text'):
+                return response.generated_text
+            elif isinstance(response, str):
+                return response
+            else:
+                return str(response)
+                
+        except Exception as e:
+            logger.error(f"Fehler bei der Abfrage von {model_name}: {str(e)}", exc_info=True)
+            return "Entschuldigung, ich konnte diese Anfrage nicht verarbeiten."
     
-    def query_teacher_models(self, prompt: str, num_responses: int = 3, temperature: float = 0.7) -> Dict[str, str]:
+    def query_teacher_models(self, prompt: str, num_responses: int = 3, temperature: float = 0.3) -> List[str]:
         """
-        Fragt Lehrer-Modelle für Wissensakquisition ab.
+        Fragt alle Lehrer-Modelle mit einer Benutzeranfrage
         
         Args:
-            prompt: Der zu verarbeitende Prompt
+            prompt: Die Benutzeranfrage
             num_responses: Anzahl der gewünschten Antworten
             temperature: Temperatur für die Generierung
             
         Returns:
-            Dictionary mit Modellname -> Antwort
+            List[str]: Antworten von den Lehrer-Modellen
         """
-        if not self.model_manager:
-            logger.error("Kein ModelManager injiziert. Kann Lehrer-Modelle nicht abfragen.")
-            return {}
-            
-        if not self.teachers:
-            # Standard-Lehrer-Modelle verwenden, falls keine registriert
-            try:
-                all_models = self.model_manager.list_models()
-                # Verwende nur die ersten Modelle, die als Lehrer geeignet sind
-                self.teachers = all_models[:min(num_responses, len(all_models))]
-                logger.info(f"Verwende Standard-Lehrer-Modelle: {self.teachers}")
-            except Exception as e:
-                logger.error(f"Fehler beim Abrufen der Modelle: {str(e)}")
-                return {}
-        
-        # Beschränke auf die gewünschte Anzahl von Antworten
-        models_to_query = self.teachers[:num_responses]
-        logger.info(f"Frage {len(models_to_query)} Lehrer-Modelle: {models_to_query}")
-        
-        # Setze Temperatur für Lehrer-Abfragen
-        original_temps = {}
-        for model in models_to_query:
-            if hasattr(self.model_manager, 'get_model_config'):
-                try:
-                    original_temps[model] = self.model_manager.get_model_config(model).get('temperature', 0.7)
-                    self.model_manager.update_model_config(model, {'temperature': temperature})
-                except Exception as e:
-                    logger.debug(f"Konnte Temperatur für {model} nicht ändern: {str(e)}")
-        
-        # Führe Abfragen durch
-        results = self.query_models_batch(models_to_query, prompt)
-        
-        # Setze ursprüngliche Temperaturen zurück
-        for model, temp in original_temps.items():
-            if hasattr(self.model_manager, 'update_model_config'):
-                try:
-                    self.model_manager.update_model_config(model, {'temperature': temp})
-                except Exception as e:
-                    logger.debug(f"Konnte Temperatur für {model} nicht zurücksetzen: {str(e)}")
-        
-        return results
+        responses = []
+        for model_name in self.teacher_models[:num_responses]:
+            response = self.query(model_name, prompt, temperature=temperature)
+            responses.append(response)
+        return responses
     
-    def query_model(self, model_name: str, prompt: str, **kwargs) -> str:
+    def query_student_models(self, prompt: str, max_tokens: int = 512) -> Dict[str, str]:
         """
-        Fragt ein einzelnes Modell mit einem Prompt ab.
+        Fragt alle Schüler-Modelle mit einer Benutzeranfrage
         
         Args:
-            model_name: Name des Modells
-            prompt: Der zu verarbeitende Prompt
+            prompt: Die Benutzeranfrage
+            max_tokens: Maximale Anzahl der Tokens für die Antwort
             
         Returns:
-            Die Antwort des Modells
+            Dict[str, str]: Antworten von den Schüler-Modellen
         """
-        if not self.model_manager:
-            logger.error("Kein ModelManager injiziert. Kann Modell nicht abfragen.")
-            return "Fehler: Kein ModelManager injiziert"
-        
-        try:
-            # Hole die Konfiguration für das Modell
-            config = {}
-            if hasattr(self.model_manager, 'get_model_config'):
-                config = self.model_manager.get_model_config(model_name)
-            
-            # Aktualisiere mit benutzerspezifischen Parametern
-            config.update(kwargs)
-            
-            # Führe die Abfrage durch
-            response = self.model_manager.query_model(model_name, prompt, **config)
-            logger.debug(f"Antwort von {model_name}: {response[:100]}...")
-            return response
-        except Exception as e:
-            logger.error(f"Fehler bei der Abfrage von {model_name}: {str(e)}", exc_info=True)
-            return f"Fehler bei der Abfrage: {str(e)}"
+        responses = {}
+        for model_name in self.student_models:
+            responses[model_name] = self.query(model_name, prompt, max_tokens=max_tokens)
+        return responses
