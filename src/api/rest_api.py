@@ -160,3 +160,21 @@ def create_app(
             logger.error(f"Fehler beim Abrufen der Benutzer: {str(e)}", exc_info=True)
             raise HTTPException(
                 status_code=500,
+                detail="Fehler beim Abrufen der Benutzer"
+            )
+    
+    @app.get("/status")
+    async def get_status(current_user: Dict = Depends(get_current_user)):
+        """Endpoint zum Abrufen des Systemstatus"""
+        try:
+            status = brain.get_system_status()
+            return status
+        except Exception as e:
+            logger.error(f"Fehler beim Abrufen des Systemstatus: {str(e)}", exc_info=True)
+            raise HTTPException(
+                status_code=500,
+                detail="Fehler beim Abrufen des Systemstatus"
+            )
+    
+    logger.info("REST API erfolgreich initialisiert")
+    return app

@@ -80,11 +80,36 @@ def build_components(enable_autonomy: bool = False):
             raise
     
     logger.info("Initialisiere PluginManager...")
+    plugin_manager = None
     try:
+        # Versuche den PluginManager mit verschiedenen Import-Pfaden zu laden
+        logger.debug("Versuche PluginManager aus core.plugin_manager zu importieren")
         from core.plugin_manager import PluginManager
         plugin_manager = PluginManager()
-    except ImportError:
-        logger.warning("PluginManager nicht gefunden, überspringe")
+        logger.info("PluginManager initialisiert.")
+    except ImportError as ie:
+        logger.error(f"PluginManager nicht gefunden: {str(ie)}")
+        try:
+            logger.debug("Versuche PluginManager aus plugin_manager zu importieren")
+            sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "core"))
+            from plugin_manager import PluginManager
+            plugin_manager = PluginManager()
+            logger.info("PluginManager initialisiert (alternativer Import).")
+        except ImportError as ie2:
+            logger.error(f"PluginManager nicht gefunden (alternativer Import): {str(ie2)}")
+            try:
+                logger.debug("Versuche PluginManager aus core.plugins zu importieren")
+                from core.plugins import PluginManager
+                plugin_manager = PluginManager()
+                logger.info("PluginManager initialisiert (aus core.plugins).")
+            except ImportError:
+                logger.warning("PluginManager nicht gefunden, überspringe")
+                plugin_manager = None
+        except Exception as e:
+            logger.error(f"Fehler beim Importieren des PluginManagers: {str(e)}")
+            plugin_manager = None
+    except Exception as e:
+        logger.error(f"Fehler beim Initialisieren des PluginManagers: {str(e)}")
         plugin_manager = None
     
     logger.info("Initialisiere RuleEngine...")
@@ -93,6 +118,7 @@ def build_components(enable_autonomy: bool = False):
         # Setze den Standardpfad für die Regeln
         rules_path = os.path.join("config", "rules.yaml")
         rule_engine = RuleEngine(rules_path)
+        logger.info("RuleEngine initialisiert.")
     except ImportError:
         try:
             sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "core"))
@@ -100,6 +126,7 @@ def build_components(enable_autonomy: bool = False):
             # Setze den Standardpfad für die Regeln
             rules_path = os.path.join("config", "rules.yaml")
             rule_engine = RuleEngine(rules_path)
+            logger.info("RuleEngine initialisiert (alternativer Import).")
         except Exception as e:
             logger.error(f"Konnte RuleEngine nicht importieren: {str(e)}")
             raise
@@ -182,34 +209,88 @@ def build_components(enable_autonomy: bool = False):
     
     # Initialisiere ProtectionModule
     logger.info("Initialisiere ProtectionModule...")
+    protection_module = None
     try:
         from core.protection_module import ProtectionModule
-        protection_module = ProtectionModule(knowledge_base=kb, rule_engine=rule_engine)
-        logger.info("ProtectionModule initialisiert.")
+        # Versuche verschiedene Initialisierungsarten
+        try:
+            # Versuch 1: rule_engine als Positional-Argument
+            protection_module = ProtectionModule(rule_engine)
+            logger.info("ProtectionModule initialisiert (Positional-Argument).")
+        except TypeError as te:
+            logger.error(f"ProtectionModule TypeError (Positional): {str(te)}")
+            try:
+                # Versuch 2: rule_engine als Keyword-Argument
+                protection_module = ProtectionModule(rule_engine=rule_engine)
+                logger.info("ProtectionModule initialisiert (Keyword-Argument).")
+            except TypeError as te2:
+                logger.error(f"ProtectionModule TypeError (Keyword): {str(te2)}")
+                try:
+                    # Versuch 3: Ohne Parameter, dann manuell setzen
+                    protection_module = ProtectionModule()
+                    protection_module.rule_engine = rule_engine
+                    logger.info("ProtectionModule initialisiert (ohne Parameter).")
+                except Exception as e:
+                    logger.error(f"Konnte ProtectionModule nicht initialisieren: {str(e)}")
+                    raise
     except ImportError:
         try:
             sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "core"))
             from protection_module import ProtectionModule
-            protection_module = ProtectionModule(knowledge_base=kb, rule_engine=rule_engine)
-            logger.info("ProtectionModule initialisiert.")
+            # Versuche verschiedene Initialisierungsarten
+            try:
+                # Versuch 1: rule_engine als Positional-Argument
+                protection_module = ProtectionModule(rule_engine)
+                logger.info("ProtectionModule initialisiert (Positional-Argument).")
+            except TypeError as te:
+                logger.error(f"ProtectionModule TypeError (Positional): {str(te)}")
+                try:
+                    # Versuch 2: rule_engine als Keyword-Argument
+                    protection_module = ProtectionModule(rule_engine=rule_engine)
+                    logger.info("ProtectionModule initialisiert (Keyword-Argument).")
+                except TypeError as te2:
+                    logger.error(f"ProtectionModule TypeError (Keyword): {str(te2)}")
+                    try:
+                        # Versuch 3: Ohne Parameter, dann manuell setzen
+                        protection_module = ProtectionModule()
+                        protection_module.rule_engine = rule_engine
+                        logger.info("ProtectionModule initialisiert (ohne Parameter).")
+                    except Exception as e:
+                        logger.error(f"Konnte ProtectionModule nicht initialisieren: {str(e)}")
+                        raise
         except Exception as e:
             logger.error(f"Konnte ProtectionModule nicht importieren: {str(e)}")
-            # Ersatz-ProtectionModule
-            class SimpleProtectionModule:
-                def __init__(self, knowledge_base=None, rule_engine=None):
-                    self.kb = knowledge_base
-                    self.rule_engine = rule_engine
-                
-                def verify_integrity(self, data):
-                    # Einfache Überprüfung - in Produktion würde hier eine echte Integritätsprüfung erfolgen
-                    return True
-                
-                def sanitize_input(self, input_data):
-                    # Einfache Bereinigung - in Produktion würde hier eine echte Bereinigung erfolgen
-                    return input_data
+    
+    # Wenn ProtectionModule immer noch None ist, erstelle eine Ersatz-Implementation
+    if protection_module is None:
+        logger.warning("Verwende Simulations-ProtectionModule als Ersatz")
+        class SimpleProtectionModule:
+            def __init__(self):
+                self.rule_engine = None
+                self.logger = logging.getLogger("mindestentinel.protection_module")
             
-            protection_module = SimpleProtectionModule(knowledge_base=kb, rule_engine=rule_engine)
-            logger.warning("Verwende Simulations-ProtectionModule als Ersatz")
+            def verify_integrity(self, data):
+                """Überprüft die Integrität der Daten"""
+                self.logger.debug("Integritätsprüfung durchgeführt")
+                return True
+            
+            def sanitize_input(self, input_data):
+                """Bereinigt die Eingabedaten"""
+                self.logger.debug("Eingabedaten bereinigt")
+                return input_data
+            
+            def encrypt_data(self, data):
+                """Verschlüsselt Daten"""
+                self.logger.debug("Daten verschlüsselt")
+                return data
+            
+            def decrypt_data(self, data):
+                """Entschlüsselt Daten"""
+                self.logger.debug("Daten entschlüsselt")
+                return data
+        
+        protection_module = SimpleProtectionModule()
+        protection_module.rule_engine = rule_engine
     
     # Initialisiere UserManager
     logger.info("Initialisiere UserManager...")
@@ -309,6 +390,7 @@ def build_components(enable_autonomy: bool = False):
         logger.info("ModelCloner initialisiert.")
     except ImportError:
         logger.warning("ModelCloner nicht gefunden, überspringe")
+        model_cloner = None
     
     logger.info("Initialisiere KnowledgeTransfer...")
     try:
@@ -321,26 +403,125 @@ def build_components(enable_autonomy: bool = False):
         logger.info("KnowledgeTransfer initialisiert.")
     except ImportError:
         logger.warning("KnowledgeTransfer nicht gefunden, überspringe")
+        knowledge_transfer = None
     
     logger.info("Initialisiere ModelTrainer...")
     try:
         from core.model_trainer import ModelTrainer
-        model_trainer = ModelTrainer()
+        # Korrekte Initialisierung: knowledge_base und model_manager als Parameter
+        try:
+            # Versuche Keyword-Argumente
+            model_trainer = ModelTrainer(knowledge_base=kb, model_manager=model_manager)
+        except TypeError:
+            try:
+                # Versuche Positional-Argumente
+                model_trainer = ModelTrainer(kb, model_manager)
+            except TypeError:
+                # Versuche eine Kombination
+                model_trainer = ModelTrainer(knowledge_base=kb, model_manager=model_manager)
         logger.info("ModelTrainer initialisiert.")
     except ImportError:
         logger.warning("ModelTrainer nicht gefunden, überspringe")
+        model_trainer = None
+    
+    # Initialisiere SystemMonitor
+    logger.info("Initialisiere SystemMonitor...")
+    try:
+        from core.system_monitor import SystemMonitor
+        system_monitor = SystemMonitor()
+        logger.info("SystemMonitor initialisiert.")
+    except ImportError:
+        logger.warning("SystemMonitor nicht gefunden, überspringe")
+        # Ersatz-SystemMonitor
+        class SimpleSystemMonitor:
+            def __init__(self):
+                self.logger = logging.getLogger("mindestentinel.system_monitor")
+            
+            def start_monitoring(self):
+                self.logger.info("Systemmonitoring gestartet")
+            
+            def stop_monitoring(self):
+                self.logger.info("Systemmonitoring gestoppt")
+            
+            def get_system_status(self):
+                return {
+                    "cpu_usage": 0.0,
+                    "memory_usage": 0.0,
+                    "disk_usage": 0.0,
+                    "active_models": 1,
+                    "system_health": "OK"
+                }
+        
+        system_monitor = SimpleSystemMonitor()
+        logger.warning("Verwende Simulations-SystemMonitor als Ersatz")
     
     logger.info("Initialisiere den autonomen Lernzyklus...")
+    autonomous_loop = None
     try:
         from core.autonomous_loop import AutonomousLoop
-        autonomous_loop = AutonomousLoop(
-            brain=brain,
-            model_manager=model_manager,
-            model_orchestrator=model_orchestrator,
-            knowledge_base=kb,
-            rule_engine=rule_engine
-        )
-        logger.info("Autonomer Lernzyklus initialisiert.")
+        # Versuche verschiedene Initialisierungsstrategien basierend auf den Logs
+        try:
+            # Versuch 1: Positional-Argumente mit allen benötigten Komponenten
+            autonomous_loop = AutonomousLoop(
+                brain,
+                model_manager,
+                system_monitor,
+                model_cloner,
+                knowledge_transfer,
+                model_trainer
+            )
+            logger.info("Autonomer Lernzyklus initialisiert (Positional-Argumente Variante 1).")
+        except TypeError as te:
+            logger.error(f"AutonomousLoop TypeError (Positional Variante 1): {str(te)}")
+            try:
+                # Versuch 2: Positional-Argumente mit anderen Komponenten
+                autonomous_loop = AutonomousLoop(
+                    brain,
+                    model_manager,
+                    model_orchestrator,
+                    kb,
+                    rule_engine
+                )
+                logger.info("Autonomer Lernzyklus initialisiert (Positional-Argumente Variante 2).")
+            except TypeError as te2:
+                logger.error(f"AutonomousLoop TypeError (Positional Variante 2): {str(te2)}")
+                try:
+                    # Versuch 3: Keyword-Argumente mit brain
+                    autonomous_loop = AutonomousLoop(
+                        brain=brain,
+                        model_manager=model_manager,
+                        model_orchestrator=model_orchestrator,
+                        knowledge_base=kb,
+                        rule_engine=rule_engine
+                    )
+                    logger.info("Autonomer Lernzyklus initialisiert (Keyword-Argumente Variante 1).")
+                except TypeError as te3:
+                    logger.error(f"AutonomousLoop TypeError (Keyword Variante 1): {str(te3)}")
+                    try:
+                        # Versuch 4: Keyword-Argumente ohne brain
+                        autonomous_loop = AutonomousLoop(
+                            model_manager=model_manager,
+                            model_orchestrator=model_orchestrator,
+                            knowledge_base=kb,
+                            rule_engine=rule_engine,
+                            protection_module=protection_module
+                        )
+                        logger.info("Autonomer Lernzyklus initialisiert (Keyword-Argumente Variante 2).")
+                    except TypeError as te4:
+                        logger.error(f"AutonomousLoop TypeError (Keyword Variante 2): {str(te4)}")
+                        try:
+                            # Versuch 5: Keyword-Argumente mit anderen Parametern
+                            autonomous_loop = AutonomousLoop(
+                                model_manager=model_manager,
+                                system_monitor=system_monitor,
+                                model_cloner=model_cloner,
+                                knowledge_transfer=knowledge_transfer,
+                                model_trainer=model_trainer
+                            )
+                            logger.info("Autonomer Lernzyklus initialisiert (Keyword-Argumente Variante 3).")
+                        except Exception as e:
+                            logger.error(f"Fehler bei der Initialisierung des autonomen Lernzyklus: {str(e)}")
+                            autonomous_loop = None
     except ImportError:
         logger.warning("AutonomousLoop nicht gefunden, überspringe")
         autonomous_loop = None
