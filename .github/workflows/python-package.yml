@@ -20,9 +20,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
       - name: Linux install openssh
-        run: apt install openssh
+        run: sudo apt install -y openssh
       - name: Linux install GitHub 
-        run: apt install git
+        run: sudo apt install -y git
       - name: Syntax check
         run: python -m compileall -q .
       - name: Run tests
