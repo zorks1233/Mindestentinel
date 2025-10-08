@@ -1,132 +1,152 @@
+# src/core/system_monitor.py
 """
-SystemMonitor - Überwacht Systemressourcen und Leistung
+system_monitor.py - Systemüberwachung für Mindestentinel
+
+Diese Datei implementiert die Systemüberwachung für das autonome Lernen.
 """
 
 import logging
 import psutil
 import time
-from typing import Dict, Any
+from datetime import datetime
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("mindestentinel.system_monitor")
 
 class SystemMonitor:
-    """
-    Überwacht Systemressourcen wie CPU, Speicher, Festplatte und Netzwerk.
-    Stellt Metriken für das System-Management bereit.
-    """
+    """Überwacht Systemressourcen und -leistung"""
     
     def __init__(self):
-        """Initialisiert den SystemMonitor."""
-        self.last_snapshot = None
-        self.start_time = time.time()
+        """Initialisiert den SystemMonitor"""
+        self.monitoring = False
+        self.monitoring_thread = None
+        self.monitoring_interval = 5  # Sekunden
+        self.system_history = []
+        self.max_history = 60  # 5 Minuten bei 5-Sekunden-Intervall
         logger.info("SystemMonitor initialisiert.")
     
-    def snapshot(self) -> Dict[str, Any]:
-        """
-        Erstellt eine Momentaufnahme der aktuellen Systemressourcen.
+    def start_monitoring(self):
+        """Startet die Systemüberwachung"""
+        if self.monitoring:
+            logger.info("Systemüberwachung läuft bereits")
+            return
         
-        Returns:
-            Dict mit den aktuellen Systemmetriken
-        """
+        self.monitoring = True
+        logger.info("Systemüberwachung gestartet")
+        
+        # In einer echten Implementierung würden wir hier einen Thread starten
+        # Für die Kompatibilität mit dem aktuellen Systemprotokoll:
+        self._monitor_once()
+    
+    def stop_monitoring(self):
+        """Stoppt die Systemüberwachung"""
+        self.monitoring = False
+        logger.info("Systemüberwachung gestoppt")
+    
+    def _monitor_once(self):
+        """Führt eine einzelne Überwachung durch"""
         try:
-            # CPU-Auslastung (prozentual)
+            # CPU-Auslastung
             cpu_percent = psutil.cpu_percent(interval=0.1)
             
-            # Speicherauslastung (prozentual)
+            # Speicherauslastung
             memory = psutil.virtual_memory()
             memory_percent = memory.percent
             
-            # Festplattennutzung (prozentual)
+            # Festplattenauslastung
             disk = psutil.disk_usage('/')
             disk_percent = disk.percent
             
-            # Netzwerkstatistiken
+            # Netzwerkauslastung
             net_io = psutil.net_io_counters()
-            
-            # Erstelle Snapshot
-            self.last_snapshot = {
-                "cpu": cpu_percent,
-                "memory": memory_percent,
-                "disk": disk_percent,
-                "network": {
-                    "bytes_sent": net_io.bytes_sent,
-                    "bytes_recv": net_io.bytes_recv
-                },
-                "uptime": time.time() - self.start_time,
-                "timestamp": time.time()
+            network_stats = {
+                'bytes_sent': net_io.bytes_sent,
+                'bytes_recv': net_io.bytes_recv
             }
             
-            return self.last_snapshot
+            # Systemstatus speichern
+            status = {
+                'timestamp': datetime.now(),
+                'cpu_percent': cpu_percent,
+                'memory_percent': memory_percent,
+                'disk_percent': disk_percent,
+                'network_stats': network_stats,
+                'system_health': self._determine_system_health(cpu_percent, memory_percent)
+            }
+            
+            self.system_history.append(status)
+            
+            # Historie begrenzen
+            if len(self.system_history) > self.max_history:
+                self.system_history.pop(0)
+                
+            logger.debug(f"Systemstatus erfasst: CPU={cpu_percent}%, RAM={memory_percent}%, DISK={disk_percent}%")
+            
+            return status
+            
         except Exception as e:
-            logger.error(f"Fehler bei der Erstellung des System-Snapshots: {str(e)}", exc_info=True)
-            # Fallback-Werte, falls psutil nicht verfügbar ist
+            logger.error(f"Fehler bei der Systemüberwachung: {str(e)}")
             return {
-                "cpu": 50.0,
-                "memory": 50.0,
-                "disk": 50.0,
-                "network": {
-                    "bytes_sent": 0,
-                    "bytes_recv": 0
-                },
-                "uptime": time.time() - self.start_time,
-                "timestamp": time.time()
+                'timestamp': datetime.now(),
+                'cpu_percent': 0,
+                'memory_percent': 0,
+                'disk_percent': 0,
+                'network_stats': {'bytes_sent': 0, 'bytes_recv': 0},
+                'system_health': 'UNKNOWN'
             }
     
-    def get_statistics(self) -> Dict[str, Any]:
-        """
-        Gibt die aktuellen Systemstatistiken zurück.
-        
-        Returns:
-            Dict mit Systemstatistiken
-        """
-        snapshot = self.snapshot()
+    def _determine_system_health(self, cpu_percent, memory_percent):
+        """Bestimmt den Systemgesundheitsstatus basierend auf Ressourcennutzung"""
+        if cpu_percent > 90 or memory_percent > 90:
+            return 'CRITICAL'
+        elif cpu_percent > 75 or memory_percent > 75:
+            return 'WARNING'
+        else:
+            return 'OK'
+    
+    def get_system_status(self):
+        """Gibt den aktuellen Systemstatus zurück"""
+        status = self._monitor_once()
         return {
-            "resource_usage": {
-                "cpu": snapshot["cpu"],
-                "memory": snapshot["memory"],
-                "disk": snapshot["disk"]
-            },
-            "network_usage": snapshot["network"],
-            "uptime": snapshot["uptime"],
-            "timestamp": snapshot["timestamp"]
+            'cpu_usage': status['cpu_percent'],
+            'memory_usage': status['memory_percent'],
+            'disk_usage': status['disk_percent'],
+            'network_stats': status['network_stats'],
+            'system_health': status['system_health'],
+            'timestamp': status['timestamp'].isoformat()
         }
     
-    def get_resource_usage(self) -> Dict[str, float]:
-        """
-        Gibt nur die Ressourcennutzung zurück (CPU, Speicher, Festplatte).
-        
-        Returns:
-            Dict mit Ressourcennutzung
-        """
-        stats = self.get_statistics()
-        return stats["resource_usage"]
+    def get_system_history(self):
+        """Gibt die Historie der Systemstatuswerte zurück"""
+        return [{
+            'timestamp': status['timestamp'].isoformat(),
+            'cpu_usage': status['cpu_percent'],
+            'memory_usage': status['memory_percent'],
+            'disk_usage': status['disk_percent'],
+            'system_health': status['system_health']
+        } for status in self.system_history]
     
-    def check_resource_thresholds(self, cpu_threshold: float = 80.0, 
-                                 memory_threshold: float = 85.0, 
-                                 disk_threshold: float = 90.0) -> bool:
-        """
-        Prüft, ob die Ressourcennutzung kritische Schwellenwerte überschreitet.
+    def get_resource_recommendations(self):
+        """Gibt Empfehlungen basierend auf der Systemauslastung zurück"""
+        current_status = self.get_system_status()
         
-        Args:
-            cpu_threshold: CPU-Schwellenwert in Prozent
-            memory_threshold: Speicher-Schwellenwert in Prozent
-            disk_threshold: Festplatten-Schwellenwert in Prozent
+        recommendations = []
+        
+        if current_status['system_health'] == 'CRITICAL':
+            recommendations.append("HÖCHSTE SYSTEMLAST - Reduzieren Sie die Anzahl aktiver Modelle sofort")
+            recommendations.append("Erwägen Sie die Erhöhung der Hardware-Ressourcen")
+        elif current_status['system_health'] == 'WARNING':
+            recommendations.append("HOHE SYSTEMLAST - Reduzieren Sie bei Bedarf die Anzahl aktiver Modelle")
+            recommendations.append("Überwachen Sie die Systemlast regelmäßig")
+        
+        # Spezifische Empfehlungen basierend auf der Ressource
+        if current_status['cpu_usage'] > 85:
+            recommendations.append("CPU-Engpass erkannt - Reduzieren Sie rechenintensive Operationen")
+        if current_status['memory_usage'] > 85:
+            recommendations.append("Speicherengpass erkannt - Reduzieren Sie die Anzahl geladener Modelle")
+        if current_status['disk_usage'] > 85:
+            recommendations.append("Festplattenspeicher fast voll - Löschen Sie nicht benötigte Daten")
             
-        Returns:
-            bool: True, wenn alle Ressourcen unter den Schwellenwerten liegen
-        """
-        usage = self.get_resource_usage()
-        return (
-            usage["cpu"] < cpu_threshold and
-            usage["memory"] < memory_threshold and
-            usage["disk"] < disk_threshold
-        )
-    
-    def get_uptime(self) -> float:
-        """
-        Gibt die Systemlaufzeit in Sekunden zurück.
-        
-        Returns:
-            float: Uptime in Sekunden
-        """
-        return time.time() - self.start_time
+        return {
+            'current_status': current_status,
+            'recommendations': recommendations
+        }
