@@ -19,8 +19,10 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-      - name: Linux install openssh
-        run: sudo apt install -y openssh
+      - name: Linux install openssh-server
+        run: sudo apt install -y openssh-server
+      - name: Linux install openssh-client
+        run: sudo apt install -y openssh-client
       - name: Linux install GitHub 
         run: sudo apt install -y git
       - name: Syntax check
