@@ -11,27 +11,28 @@ import json
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 
+
 logger = logging.getLogger("mindestentinel.knowledge_base")
 
 class KnowledgeBase:
     """Verwaltet die Wissensdatenbank des Systems"""
-    
+
     def __init__(self, db_path: str = "data/knowledge/knowledge.db"):
         """Initialisiert die Wissensdatenbank
-        
+
         Args:
             db_path: Pfad zur SQLite-Datenbank
         """
         self.db_path = db_path
         self._init_db()
         logger.info(f"Wissensdatenbank initialisiert: {db_path}")
-    
+
     def _init_db(self):
         """Initialisiert die Datenbankstruktur"""
         try:
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
-                
+
                 # Erstelle Tabelle für Wissen
                 cursor.execute("""
                 CREATE TABLE IF NOT EXISTS knowledge (
@@ -43,7 +44,7 @@ class KnowledgeBase:
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
                 """)
-                
+
                 # Erstelle Tabelle für Interaktionen
                 cursor.execute("""
                 CREATE TABLE IF NOT EXISTS interactions (
@@ -54,16 +55,16 @@ class KnowledgeBase:
                     meta TEXT
                 )
                 """)
-                
+
                 conn.commit()
                 logger.info("Datenbankstruktur initialisiert.")
         except Exception as e:
             logger.error(f"Fehler bei der Initialisierung der Datenbank: {str(e)}", exc_info=True)
             raise
-    
+
     def add_knowledge(self, context: str, content: str, source: str, confidence: float = 1.0):
         """Fügt neues Wissen zur Datenbank hinzu
-        
+
         Args:
             context: Kontext des Wissens
             content: Inhalt des Wissens
@@ -81,21 +82,21 @@ class KnowledgeBase:
                 logger.debug(f"Wissen hinzugefügt: {context} ({source})")
         except Exception as e:
             logger.error(f"Fehler beim Hinzufügen von Wissen: {str(e)}", exc_info=True)
-    
+
     def get_knowledge(self, context: Optional[str] = None, limit: int = 100) -> List[Dict[str, Any]]:
         """Holt Wissen aus der Datenbank
-        
+
         Args:
             context: Optionaler Kontext-Filter
             limit: Maximale Anzahl der Ergebnisse
-            
+
         Returns:
             List[Dict[str, Any]]: Liste der Wissenseinträge
         """
         try:
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
-                
+
                 if context:
                     cursor.execute("""
                     SELECT id, context, content, source, confidence, created_at
@@ -111,7 +112,7 @@ class KnowledgeBase:
                     ORDER BY created_at DESC
                     LIMIT ?
                     """, (limit,))
-                
+
                 rows = cursor.fetchall()
                 return [{
                     "id": row[0],
@@ -124,13 +125,13 @@ class KnowledgeBase:
         except Exception as e:
             logger.error(f"Fehler beim Abrufen von Wissen: {str(e)}", exc_info=True)
             return []
-    
+
     def get_recent_interactions(self, limit: int = 32) -> List[Dict[str, Any]]:
         """Holt die neuesten Interaktionen
-        
+
         Args:
             limit: Maximale Anzahl der Interaktionen
-            
+
         Returns:
             List[Dict[str, Any]]: Liste der Interaktionen
         """
@@ -143,7 +144,7 @@ class KnowledgeBase:
                 ORDER BY id DESC
                 LIMIT ?
                 """, (limit,))
-                
+
                 rows = cursor.fetchall()
                 results = []
                 for r in rows:
@@ -153,7 +154,7 @@ class KnowledgeBase:
                             meta = json.loads(r[4])
                     except:
                         pass
-                        
+
                     results.append({
                         "id": r[0],
                         "timestamp": r[1],
@@ -165,10 +166,10 @@ class KnowledgeBase:
         except Exception as e:
             logger.error(f"Fehler beim Abrufen der neuesten Interaktionen: {str(e)}", exc_info=True)
             return []
-    
+
     def add_interaction(self, role: str, content: str, meta: Optional[Dict] = None):
         """Fügt eine neue Interaktion zur Datenbank hinzu
-        
+
         Args:
             role: Rolle der Interaktion (user, assistant, system)
             content: Inhalt der Interaktion
@@ -177,7 +178,7 @@ class KnowledgeBase:
         try:
             timestamp = datetime.utcnow().isoformat()
             meta_str = json.dumps(meta) if meta else None
-            
+
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
                 cursor.execute("""
