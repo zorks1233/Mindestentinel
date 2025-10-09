@@ -1,0 +1,4 @@
+teacher_model:
+  path: models/teacher_model.bin
+  type: transformer
+  hf_name: Qwen/Qwen-7B
