@@ -5,9 +5,6 @@ main.py - Haupteinstiegspunkt für Mindestentinel
 Diese Datei startet das System und verbindet alle Komponenten.
 """
 
-# ABSOLUT KRITISCH: Dies MUSS die allererste Anweisung im gesamten Skript sein
-import src.patch_multiprocessing  # WICHTIG: Vor allen anderen Imports!
-
 import os
 import sys
 import logging
@@ -15,14 +12,37 @@ import argparse
 import platform
 import multiprocessing
 from datetime import datetime
-from fastapi import Request
+
+# ABSOLUT KRITISCH: Dies MUSS die allererste Anweisung im gesamten Skript sein
+# Stelle sicher, dass der Projekt-Root im Python-Pfad ist
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
 
 # Setze PYTHONPATH, falls nicht gesetzt
 if not os.environ.get('PYTHONPATH'):
-    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     os.environ['PYTHONPATH'] = f"{project_root};{project_root}/src"
-    sys.path.insert(0, project_root)
-    sys.path.insert(0, os.path.join(project_root, 'src'))
+
+# Füge src-Verzeichnis zum Python-Pfad hinzu
+src_path = os.path.join(project_root, 'src')
+if src_path not in sys.path:
+    sys.path.insert(0, src_path)
+
+# Spezielle Fehlerbehandlung für Windows mit Debugger
+is_windows = sys.platform == "win32"
+is_debugging = 'pydevd' in sys.modules or 'pdb' in sys.modules
+
+if is_windows and is_debugging:
+    # Deaktiviere das Multiprocessing-Patching des Debuggers
+    os.environ["PYDEVDmultiprocess"] = "False"
+
+    # Versuche, pydevd zu importieren und das Patching zu deaktivieren
+    try:
+        import pydevd
+
+        pydevd.settrace(suspend=False, patch_multiprocessing=False)
+    except ImportError:
+        pass
 
 
 def setup_logging():
@@ -158,11 +178,28 @@ def build_components(enable_autonomy: bool = False):
         rule_engine = RuleEngine(rules_path)
         logger.info("RuleEngine initialisiert.")
 
-        # KLARE ANZEIGE DER GELADENEN REGELN AM ANFANG
-        if rule_engine.rules:
-            logger.info(f"Regeln geladen: ({len(rule_engine.rules)})")
-        else:
-            logger.warning("Keine Regeln geladen")
+        # SICHERE ANZEIGE DER GELADENEN REGELN - FLEXIBLE PRÜFUNG
+        try:
+            # Versuche verschiedene mögliche Attribute/Methoden für Regeln
+            rules_count = 0
+
+            # Versuch 1: Überprüfe, ob es ein 'rules'-Attribut gibt
+            if hasattr(rule_engine, 'rules') and rule_engine.rules is not None:
+                rules_count = len(rule_engine.rules)
+            # Versuch 2: Überprüfe, ob es ein '_rules'-Attribut gibt
+            elif hasattr(rule_engine, '_rules') and rule_engine._rules is not None:
+                rules_count = len(rule_engine._rules)
+            # Versuch 3: Überprüfe, ob es eine get_rules()-Methode gibt
+            elif hasattr(rule_engine, 'get_rules'):
+                rules = rule_engine.get_rules()
+                rules_count = len(rules) if rules else 0
+
+            if rules_count > 0:
+                logger.info(f"Regeln geladen: ({rules_count})")
+            else:
+                logger.warning("Keine Regeln geladen")
+        except Exception as e:
+            logger.warning(f"Fehler bei der Anzeige der Regeln: {str(e)}")
 
     except ImportError:
         try:
@@ -173,11 +210,28 @@ def build_components(enable_autonomy: bool = False):
             rule_engine = RuleEngine(rules_path)
             logger.info("RuleEngine initialisiert (alternativer Import).")
 
-            # KLARE ANZEIGE DER GELADENEN REGELN AM ANFANG
-            if rule_engine.rules:
-                logger.info(f"Regeln geladen: ({len(rule_engine.rules)})")
-            else:
-                logger.warning("Keine Regeln geladen")
+            # SICHERE ANZEIGE DER GELADENEN REGELN - FLEXIBLE PRÜFUNG
+            try:
+                # Versuche verschiedene mögliche Attribute/Methoden für Regeln
+                rules_count = 0
+
+                # Versuch 1: Überprüfe, ob es ein 'rules'-Attribut gibt
+                if hasattr(rule_engine, 'rules') and rule_engine.rules is not None:
+                    rules_count = len(rule_engine.rules)
+                # Versuch 2: Überprüfe, ob es ein '_rules'-Attribut gibt
+                elif hasattr(rule_engine, '_rules') and rule_engine._rules is not None:
+                    rules_count = len(rule_engine._rules)
+                # Versuch 3: Überprüfe, ob es eine get_rules()-Methode gibt
+                elif hasattr(rule_engine, 'get_rules'):
+                    rules = rule_engine.get_rules()
+                    rules_count = len(rules) if rules else 0
+
+                if rules_count > 0:
+                    logger.info(f"Regeln geladen: ({rules_count})")
+                else:
+                    logger.warning("Keine Regeln geladen")
+            except Exception as e:
+                logger.warning(f"Fehler bei der Anzeige der Regeln: {str(e)}")
         except Exception as e:
             logger.error(f"Konnte RuleEngine nicht importieren: {str(e)}")
             raise
