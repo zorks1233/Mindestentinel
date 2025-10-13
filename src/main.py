@@ -5,6 +5,9 @@ main.py - Haupteinstiegspunkt für Mindestentinel
 Diese Datei startet das System und verbindet alle Komponenten.
 """
 
+# ABSOLUT KRITISCH: Dies MUSS die allererste Anweisung im gesamten Skript sein
+import src.patch_multiprocessing  # WICHTIG: Vor allen anderen Imports!
+
 import os
 import sys
 import logging
@@ -13,15 +16,6 @@ import platform
 import multiprocessing
 from datetime import datetime
 from fastapi import Request
-
-# WICHTIG: Für Windows-Multiprocessing MUSS dies am allerersten stehen
-if sys.platform == "win32":
-    # Stelle sicher, dass wir spawn verwenden
-    try:
-        multiprocessing.set_start_method("spawn", force=True)
-    except RuntimeError:
-        # Startmethode wurde bereits gesetzt
-        pass
 
 # Setze PYTHONPATH, falls nicht gesetzt
 if not os.environ.get('PYTHONPATH'):
@@ -441,19 +435,13 @@ def build_components(enable_autonomy: bool = False):
                         if token in self.active_tokens:
                             return {"sub": "admin", "is_admin": True}
                         self.logger.warning(f"Ungültiges Token: {token}")
-                        raise HTTPException(
-                            status_code=401,
-                            detail="Token ist ungültig oder abgelaufen"
-                        )
+                        raise Exception("Token ist ungültig oder abgelaufen")
 
                     def get_current_user(self, token):
                         if token in self.active_tokens:
                             return {"username": "admin", "is_admin": True}
                         self.logger.warning(f"Ungültiges Token bei Benutzerabfrage: {token}")
-                        raise HTTPException(
-                            status_code=401,
-                            detail="Token ist ungültig oder abgelaufen"
-                        )
+                        raise Exception("Token ist ungültig oder abgelaufen")
 
                 auth_manager = SimpleAuthManager(knowledge_base=kb, user_manager=user_manager)
                 logger.warning("Verwende Simulations-AuthManager als Ersatz")
@@ -724,11 +712,38 @@ def main():
                     logger.error(f"Konnte REST API nicht erstellen: {str(e)}")
                     return
 
-            # Starte den Server
+            # Starte den Server mit spezieller Fehlerbehandlung für Windows + Debugger
             try:
                 import uvicorn
-                # Stelle sicher, dass der Server im Hintergrund läuft
-                uvicorn.run(app, host="0.0.0.0", port=args.api_port)
+
+                # Spezielle Fehlerbehandlung für Windows mit aktiviertem Debugger
+                is_windows = sys.platform == "win32"
+                is_debugging = 'pydevd' in sys.modules or 'pdb' in sys.modules
+
+                # Unter Windows mit aktiviertem Debugger immer nur 1 Worker verwenden
+                workers = 1
+
+                # Zusätzliche Sicherheitsmaßnahmen für Windows
+                if is_windows:
+                    os.environ["UVICORN_LOADER"] = "auto"
+
+                # Kritische Änderung: Deaktiviere reload bei Debugging
+                reload = False
+
+                logger.info(
+                    f"Starte REST API mit workers={workers}, reload={reload} (Windows={is_windows}, Debugging={is_debugging})")
+
+                # Starte den Server mit expliziten Parametern für Windows-Debugging
+                uvicorn.run(
+                    app,
+                    host="0.0.0.0",
+                    port=args.api_port,
+                    workers=workers,
+                    loop="asyncio" if is_windows else "auto",
+                    http="auto",
+                    reload=reload,  # WICHTIG: Immer False unter Windows mit Debugger
+                    factory=False  # WICHTIG: Verhindert unnötige Prozesserstellung
+                )
                 logger.info("REST API gestartet und läuft im Hintergrund")
             except ImportError:
                 logger.error("Uvicorn nicht installiert. Installieren Sie es mit 'pip install uvicorn'")
@@ -753,7 +768,14 @@ def main():
 
 
 if __name__ == "__main__":
-    # WICHTIG: Für Windows-Multiprocessing muss dies hier stehen
+    # Kritische Sicherheitsmaßnahme für Windows
+    # Stelle sicher, dass alle Module vollständig geladen sind
+    # BEVOR irgendwelche Multiprocessing-Operationen durchgeführt werden
     if platform.system() == "Windows":
-        multiprocessing.freeze_support()
+        try:
+            multiprocessing.freeze_support()
+        except Exception:
+            pass
+
+    # Starte das Programm erst hier - nach der vollständigen Initialisierung
     main()
