@@ -4,9 +4,9 @@ PluginManager
 - Lädt Plugin-Module aus dem 'plugins' Verzeichnis
 - Führt plugin method calls in separaten Prozessen aus, um Abstürze/Sicherheit zu isolieren
 - API:
-    load_plugins_from_dir(directory)
-    register_plugin(name, module_or_instance)
-    unregister_plugin(name)
+    load_plugins() - Lädt Plugins aus dem standardmäßigen Verzeichnis
+    initialize(**components) - Initialisiert Plugins mit Systemkomponenten
+    list_plugins() - Gibt Liste der Plugin-Namen zurück
     call_plugin(name, method, *args, timeout=10, **kwargs)
 """
 
@@ -20,13 +20,23 @@ import threading
 import time
 import traceback
 from pathlib import Path
-from typing import Any, Dict, Optional, Callable
+from typing import Any, Dict, Optional, Callable, List
+
+# Für Windows-Kompatibilität
+if sys.platform == "win32":
+    try:
+        # Stelle sicher, dass wir spawn verwenden
+        multiprocessing.set_start_method("spawn", force=True)
+    except RuntimeError:
+        # Startmethode wurde bereits gesetzt
+        pass
 
 # ensure plugins package is in path
 ROOT = Path.cwd()
 PLUGINS_DIR = ROOT / "plugins"
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+
 
 def _plugin_worker(module_name: str, attr_name: Optional[str], method: str, args: tuple, kwargs: dict, conn):
     """
@@ -35,6 +45,7 @@ def _plugin_worker(module_name: str, attr_name: Optional[str], method: str, args
     Sendet (True, result) bei Erfolg, oder (False, error_str) bei Fehler über conn.
     """
     try:
+        # Stelle sicher, dass das Modul korrekt importiert wird
         mod = importlib.import_module(module_name)
         target = None
         if attr_name:
@@ -81,14 +92,26 @@ def _plugin_worker(module_name: str, attr_name: Optional[str], method: str, args
         except Exception:
             pass
 
+
 class PluginManager:
     def __init__(self, plugins_dir: Optional[str] = None):
         self.plugins_dir = Path(plugins_dir) if plugins_dir else PLUGINS_DIR
         self._lock = threading.RLock()
         self._registry: Dict[str, Dict[str, Any]] = {}  # name -> {module, instance, meta}
+        self._components = {}  # Speichert Systemkomponenten für die Plugin-Initialisierung
+
         # ensure directory is importable by package name 'plugins'
         if str(self.plugins_dir.parent) not in sys.path:
             sys.path.insert(0, str(self.plugins_dir.parent))
+
+        # Stelle sicher, dass das Plugin-Verzeichnis existiert
+        if not self.plugins_dir.exists():
+            self.plugins_dir.mkdir(parents=True, exist_ok=True)
+            print(f"Plugin-Verzeichnis erstellt: {self.plugins_dir}")
+
+    def load_plugins(self) -> int:
+        """Lädt Plugins aus dem standardmäßigen Verzeichnis."""
+        return self.load_plugins_from_dir()
 
     def load_plugins_from_dir(self) -> int:
         """Findet Python-Dateien im plugins-Dir und lädt sie als Module."""
@@ -103,12 +126,13 @@ class PluginManager:
                 module_name = f"plugins.{name}"
                 self.register_plugin_from_module(module_name)
                 count += 1
-            except Exception:
+            except Exception as e:
                 # skip faulty plugin but keep processing
                 continue
         return count
 
-    def register_plugin_from_module(self, module_name: str, attr_name: Optional[str] = None, meta: Optional[dict] = None) -> None:
+    def register_plugin_from_module(self, module_name: str, attr_name: Optional[str] = None,
+                                    meta: Optional[dict] = None) -> None:
         """
         Lädt ein Plugin-Modul und registriert es unter dem Modulname (oder meta['name']).
         """
@@ -125,7 +149,9 @@ class PluginManager:
         with self._lock:
             if name in self._registry:
                 raise KeyError(f"Plugin {name} bereits registriert")
-            self._registry[name] = {"module": getattr(instance, "__module__", None), "attr": getattr(instance, "__class__", None).__name__, "instance": instance, "meta": meta or {}}
+            self._registry[name] = {"module": getattr(instance, "__module__", None),
+                                    "attr": getattr(instance, "__class__", None).__name__, "instance": instance,
+                                    "meta": meta or {}}
 
     def unregister_plugin(self, name: str) -> None:
         with self._lock:
@@ -134,9 +160,21 @@ class PluginManager:
             else:
                 raise KeyError(f"Plugin {name} nicht registriert")
 
-    def list_plugins(self) -> Dict[str, Dict[str, Any]]:
+    def list_plugins(self) -> List[str]:
+        """Gibt eine Liste der verfügbaren Plugin-Namen zurück."""
         with self._lock:
-            return {k: v["meta"] for k, v in self._registry.items()}
+            return list(self._registry.keys())
+
+    def initialize(self, **components):
+        """Initialisiert alle geladenen Plugins mit den Systemkomponenten."""
+        self._components = components
+        for plugin_name in self.list_plugins():
+            try:
+                # Versuche, die initialize-Methode des Plugins aufzurufen
+                self.call_plugin(plugin_name, "initialize", **components)
+            except Exception as e:
+                # Ein Fehler bei einem Plugin sollte nicht die Initialisierung anderer Plugins verhindern
+                continue
 
     def call_plugin(self, name: str, method: str, *args, timeout: float = 10.0, **kwargs) -> Any:
         """
@@ -149,9 +187,20 @@ class PluginManager:
             entry = self._registry[name]
             module_name = entry["module"]
             attr = entry.get("attr")
+
+            # Für Windows: Setze explizit die Startmethode
+            if sys.platform == "win32":
+                try:
+                    # Stelle sicher, dass wir spawn verwenden
+                    multiprocessing.set_start_method("spawn", force=True)
+                except RuntimeError:
+                    # Startmethode wurde bereits gesetzt
+                    pass
+
             # create a multiprocessing connection
             parent_conn, child_conn = multiprocessing.Pipe()
-            p = multiprocessing.Process(target=_plugin_worker, args=(module_name, attr, method, args, kwargs, child_conn), daemon=True)
+            p = multiprocessing.Process(target=_plugin_worker,
+                                        args=(module_name, attr, method, args, kwargs, child_conn), daemon=True)
             p.start()
             start = time.time()
             result = None
