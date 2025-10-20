@@ -1,0 +1,42 @@
+# Auto-generated src/api.py
+# This file is safe to overwrite. It prefers FastAPI if installed.
+from importlib import import_module, util
+import pkgutil
+import src
+
+try:
+    from fastapi import FastAPI
+    from fastapi.responses import PlainTextResponse
+    app = FastAPI(title="Mindestentinel API (auto)")  # FastAPI app
+
+    # Try to auto-discover routers under the src package
+    for finder, module_name, ispkg in pkgutil.walk_packages(path=src.__path__, prefix=src.__name__ + "."):
+        try:
+            mod = import_module(module_name)
+            # common router attribute names
+            for attr_name in ("router", "api_router", "routes", "router_instance", "api"):
+                obj = getattr(mod, attr_name, None)
+                if obj is not None:
+                    try:
+                        app.include_router(obj)
+                    except Exception:
+                        # not a router or incompatible - ignore
+                        pass
+        except Exception:
+            # ignore import errors during discovery
+            pass
+
+    @app.get("/", response_class=PlainTextResponse)
+    def root():
+        return "Mindestentinel API - OK (FastAPI)"
+except Exception:
+    # Fallback minimal ASGI app so uvicorn can still run `uvicorn src.api:app`
+    async def app(scope, receive, send):
+        if scope.get("type") == "http":
+            headers = [(b"content-type", b"text/plain; charset=utf-8")]
+            await send({"type":"http.response.start", "status":200, "headers": headers})
+            await send({"type":"http.response.body", "body": b"Mindestentinel API - FastAPI not installed", "more_body": False})
+        else:
+            # non-http ASGI events are not supported in this fallback
+            await send({"type":"http.response.start", "status":500, "headers": []})
+            await send({"type":"http.response.body", "body": b\"\" , "more_body": False})

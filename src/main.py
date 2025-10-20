@@ -676,6 +676,12 @@ def build_components(enable_autonomy: bool = False):
     # WICHTIG: Füge rule_engine zur Rückgabewert-Liste hinzu
     return brain, model_manager, plugin_manager, autonomous_loop, user_manager, auth_manager, rule_engine
 
+import multiprocessing
+try:
+    multiprocessing.freeze_support()
+except Exception:
+    pass
+
 
 def main():
     """Hauptfunktion des Programms"""
