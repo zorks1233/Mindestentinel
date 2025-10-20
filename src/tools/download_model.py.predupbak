@@ -10,7 +10,7 @@ import sys
 import logging
 import argparse
 try:
-
+try:
     from transformers import AutoModelForCausalLM, AutoTokenizer
 except Exception:
     from src.core._stubs import AutoModelForCausalLM, AutoTokenizer
