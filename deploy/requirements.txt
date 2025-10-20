@@ -1,0 +1,11 @@
+fastapi
+uvicorn[standard]
+pyyaml
+transformers
+torch
+zstandard
+datasets
+safetensors
+huggingface-hub
+numpy
+tqdm

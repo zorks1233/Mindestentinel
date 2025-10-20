@@ -1,0 +1,184 @@
+2025-10-20 10:27:17,579 [INFO] mindestentinel.config: Logging konfiguriert. Logs werden gespeichert in: logs
+2025-10-20 10:28:29,720 [INFO] mindestentinel.config: Logging konfiguriert. Logs werden gespeichert in: logs
+2025-10-20 10:28:29,773 [INFO] mindestentinel.main: Initialisiere ModelManager...
+2025-10-20 10:28:36,433 [ERROR] mindestentinel.model_manager: Fehler beim Laden des Modells 'tiny-llama': 'NoneType' object has no attribute 'from_pretrained'
+Traceback (most recent call last):
+  File "C:\Users\bkrie\Desktop\Mindestentinel\Mindestentinel - Alpha-Projekt build0015.6A\src\core\model_manager.py", line 109, in load_models
+    tokenizer = AutoTokenizer.from_pretrained(model_path)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'from_pretrained'
+2025-10-20 10:28:36,437 [INFO] mindestentinel.model_manager: Geladen: 1 Modelle aus model_registry.json
+2025-10-20 10:28:36,437 [INFO] mindestentinel.model_manager: Starte Modellverzeichnis-Überwachung (Intervall: 60 Sekunden)...
+2025-10-20 10:28:36,438 [INFO] mindestentinel.model_manager: ModelManager initialisiert mit 0 Modellen aus data/models.
+2025-10-20 10:28:36,438 [INFO] mindestentinel.main: Initialisiere PluginManager...
+2025-10-20 10:28:36,446 [INFO] mindestentinel.main: PluginManager initialisiert.
+2025-10-20 10:28:36,538 [INFO] mindestentinel.main: Plugins geladen: (5)
+2025-10-20 10:28:36,538 [INFO] mindestentinel.main: Initialisiere RuleEngine...
+2025-10-20 10:28:36,545 [INFO] mindestentinel.rule_engine: Regeln geladen: (5)
+2025-10-20 10:28:36,546 [INFO] mindestentinel.rule_engine: Regel-Signatur erfolgreich verifiziert
+2025-10-20 10:28:36,546 [INFO] mindestentinel.rule_engine: Starte Regeldatei-Überwachung (Intervall: 30 Sekunden)...
+2025-10-20 10:28:36,546 [INFO] mindestentinel.rule_engine: RuleEngine initialisiert mit 5 Regeln.
+2025-10-20 10:28:36,546 [INFO] mindestentinel.main: RuleEngine initialisiert.
+2025-10-20 10:28:36,546 [INFO] mindestentinel.main: Regeln geladen: (5)
+2025-10-20 10:28:36,547 [INFO] mindestentinel.main: Initialisiere AIBrain...
+2025-10-20 10:28:36,547 [INFO] mindestentinel.ai_engine: AIBrain initialisiert.
+2025-10-20 10:28:36,547 [INFO] mindestentinel.ai_engine: ModelManager injiziert.
+2025-10-20 10:28:36,547 [INFO] mindestentinel.main: ModelManager injiziert.
+2025-10-20 10:28:36,547 [INFO] mindestentinel.main: Initialisiere Wissensdatenbank...
+2025-10-20 10:28:36,561 [INFO] mindestentinel.knowledge_base: Datenbankstruktur initialisiert.
+2025-10-20 10:28:36,561 [INFO] mindestentinel.knowledge_base: Wissensdatenbank initialisiert: data/knowledge/knowledge.db
+2025-10-20 10:28:36,561 [INFO] mindestentinel.main: Wissensdatenbank initialisiert.
+2025-10-20 10:28:36,561 [INFO] mindestentinel.multi_model_orchestrator: MultiModelOrchestrator initialisiert.
+2025-10-20 10:28:36,561 [INFO] mindestentinel.main: MultiModelOrchestrator initialisiert.
+2025-10-20 10:28:36,561 [INFO] mindestentinel.main: RuleEngine injiziert.
+2025-10-20 10:28:36,561 [INFO] mindestentinel.main: Initialisiere ProtectionModule...
+2025-10-20 10:28:36,561 [INFO] mindestentinel.protection_module: ProtectionModule initialisiert
+2025-10-20 10:28:36,561 [INFO] mindestentinel.main: ProtectionModule initialisiert (Positional-Argument).
+2025-10-20 10:28:36,561 [INFO] mindestentinel.main: Initialisiere UserManager...
+2025-10-20 10:28:36,591 [INFO] mindestentinel.user_manager: Standard-Admin-Benutzer 'admin' erstellt.
+2025-10-20 10:28:36,591 [INFO] mindestentinel.user_manager: Benutzerdatenbankstruktur initialisiert.
+2025-10-20 10:28:36,591 [INFO] mindestentinel.user_manager: UserManager initialisiert.
+2025-10-20 10:28:36,591 [INFO] mindestentinel.main: Initialisiere AuthManager...
+2025-10-20 10:28:37,402 [WARNING] mindestentinel.auth_manager: MIND_JWT_SECRET nicht gesetzt. Verwende generierten Schlüssel (NICHT FÜR PRODUKTION)
+2025-10-20 10:28:37,402 [INFO] mindestentinel.auth_manager: Generierter SECRET_KEY: G1YvWOukQs...
+2025-10-20 10:28:37,402 [INFO] mindestentinel.auth_manager: AuthManager initialisiert
+2025-10-20 10:28:37,402 [INFO] mindestentinel.auth_manager: SECRET_KEY: G1YvWOukQs... (NICHT FÜR PRODUKTION)
+2025-10-20 10:28:37,402 [INFO] mindestentinel.main: AuthManager erfolgreich initialisiert.
+2025-10-20 10:28:37,402 [INFO] mindestentinel.main: Initialisiere ModelCloner...
+2025-10-20 10:28:37,407 [INFO] mindestentinel.model_cloner: ModelCloner initialisiert. Backup-Verzeichnis: data/models/backups
+2025-10-20 10:28:37,407 [INFO] mindestentinel.main: ModelCloner initialisiert.
+2025-10-20 10:28:37,408 [INFO] mindestentinel.main: Initialisiere KnowledgeTransfer...
+2025-10-20 10:28:37,412 [INFO] mindestentinel.knowledge_transfer: KnowledgeTransfer initialisiert.
+2025-10-20 10:28:37,412 [INFO] mindestentinel.main: KnowledgeTransfer initialisiert.
+2025-10-20 10:28:37,412 [INFO] mindestentinel.main: Initialisiere ModelTrainer...
+2025-10-20 10:28:39,120 [INFO] mindestentinel.model_trainer: ModelTrainer initialisiert.
+2025-10-20 10:28:39,121 [INFO] mindestentinel.main: ModelTrainer initialisiert.
+2025-10-20 10:28:39,121 [INFO] mindestentinel.main: Initialisiere SystemMonitor...
+2025-10-20 10:28:39,121 [INFO] mindestentinel.system_monitor: SystemMonitor initialisiert.
+2025-10-20 10:28:39,121 [INFO] mindestentinel.main: SystemMonitor initialisiert.
+2025-10-20 10:28:39,121 [INFO] mindestentinel.main: Initialisiere den autonomen Lernzyklus...
+2025-10-20 10:28:39,126 [INFO] mindestentinel.autonomous_loop: AutonomousLoop mit 6 Positional-Argumenten initialisiert
+2025-10-20 10:28:39,126 [INFO] mindestentinel.autonomous_loop: AutonomousLoop initialisiert
+2025-10-20 10:28:39,126 [INFO] mindestentinel.main: Autonomer Lernzyklus initialisiert (Positional-Argumente Variante 1).
+2025-10-20 10:28:39,161 [INFO] mindestentinel.main: PluginManager erfolgreich initialisiert.
+2025-10-20 10:28:39,161 [INFO] mindestentinel.main: Aktiviere autonomen Lernzyklus...
+2025-10-20 10:28:39,162 [INFO] mindestentinel.autonomous_loop: Starte autonomen Lernzyklus-Thread
+2025-10-20 10:28:39,162 [INFO] mindestentinel.autonomous_loop: Autonomer Lernzyklus aktiviert
+2025-10-20 10:28:39,162 [INFO] mindestentinel.autonomous_loop: Führe autonomen Lernschritt durch
+2025-10-20 10:28:39,162 [INFO] mindestentinel.main: Autonomer Lernzyklus aktiviert.
+2025-10-20 10:28:39,163 [INFO] mindestentinel.main: Plugins auto-loaded: 0
+2025-10-20 10:28:39,163 [INFO] mindestentinel.ai_engine: AIBrain gestartet.
+2025-10-20 10:28:39,164 [INFO] mindestentinel.main: AIBrain gestartet.
+2025-10-20 10:28:39,164 [INFO] mindestentinel.main: REST API erfolgreich initialisiert
+2025-10-20 10:28:39,164 [INFO] mindestentinel.main: Starting REST API on 0.0.0.0:8000
+2025-10-20 10:28:39,205 [INFO] mindestentinel.api.rest: Erstelle REST API...
+2025-10-20 10:28:39,208 [INFO] mindestentinel.api.rest: REST API erfolgreich initialisiert
+2025-10-20 10:28:39,233 [INFO] mindestentinel.main: Starte REST API mit workers=1, reload=False (Windows=True, Debugging=True)
+2025-10-20 10:28:39,273 [INFO] mindestentinel.autonomous_loop: Aktualisiere Wissen...
+2025-10-20 10:28:39,274 [INFO] mindestentinel.autonomous_loop: Wissen aktualisiert
+2025-10-20 10:28:39,274 [INFO] mindestentinel.autonomous_loop: Trainiere Modelle...
+2025-10-20 10:28:39,274 [INFO] mindestentinel.autonomous_loop: Modelltraining abgeschlossen
+2025-10-20 10:28:39,275 [INFO] mindestentinel.autonomous_loop: Bewerte Modelle...
+2025-10-20 10:28:39,275 [INFO] mindestentinel.autonomous_loop: Modellbewertung abgeschlossen
+2025-10-20 10:28:39,275 [INFO] mindestentinel.autonomous_loop: Autonomer Lernschritt abgeschlossen
+2025-10-20 10:29:13,440 [INFO] mindestentinel.main: REST API gestartet und läuft im Hintergrund
+2025-10-20 10:29:13,440 [INFO] mindestentinel.main: System shutdown complete.
+2025-10-20 10:32:30,593 [INFO] mindestentinel.config: Logging konfiguriert. Logs werden gespeichert in: logs
+2025-10-20 10:32:30,644 [INFO] mindestentinel.main: Initialisiere ModelManager...
+2025-10-20 10:32:30,779 [ERROR] mindestentinel.main: Kritischer Fehler im Hauptprogramm: expected 'except' or 'finally' block (model_manager.py, line 109)
+Traceback (most recent call last):
+  File "C:\Users\bkrie\Desktop\Mindestentinel\Mindestentinel - Alpha-Projekt build0015.6A\src\main.py", line 724, in main
+    brain, model_manager, plugin_manager, autonomous_loop, user_manager, auth_manager, rule_engine = build_components(
+                                                                                                     ~~~~~~~~~~~~~~~~^
+        enable_autonomy=args.enable_autonomy)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\bkrie\Desktop\Mindestentinel\Mindestentinel - Alpha-Projekt build0015.6A\src\main.py", line 99, in build_components
+    from core.model_manager import ModelManager
+  File "C:\Users\bkrie\Desktop\Mindestentinel\Mindestentinel - Alpha-Projekt build0015.6A\src\core\model_manager.py", line 109
+    _model_cls = globals().get('AutoModelForCausalLM') or getattr(globals().get('transformers', None) or __import__('types').SimpleNamespace(), 'AutoModelForCausalLM', None)
+SyntaxError: expected 'except' or 'finally' block
+2025-10-20 10:32:30,785 [INFO] mindestentinel.main: System shutdown complete.
+2025-10-20 10:39:54,693 [INFO] mindestentinel.config: Logging konfiguriert. Logs werden gespeichert in: logs
+2025-10-20 10:39:54,745 [INFO] mindestentinel.main: Initialisiere ModelManager...
+2025-10-20 10:40:00,621 [INFO] mindestentinel.model_manager: Modell 'tiny-llama' erfolgreich geladen.
+2025-10-20 10:40:00,623 [INFO] mindestentinel.model_manager: Geladen: 1 Modelle aus model_registry.json
+2025-10-20 10:40:00,623 [INFO] mindestentinel.model_manager: Starte Modellverzeichnis-Überwachung (Intervall: 60 Sekunden)...
+2025-10-20 10:40:00,624 [INFO] mindestentinel.model_manager: ModelManager initialisiert mit 1 Modellen aus data/models.
+2025-10-20 10:40:00,624 [INFO] mindestentinel.main: Initialisiere PluginManager...
+2025-10-20 10:40:00,644 [INFO] mindestentinel.main: PluginManager initialisiert.
+2025-10-20 10:40:00,743 [INFO] mindestentinel.main: Plugins geladen: (5)
+2025-10-20 10:40:00,744 [INFO] mindestentinel.main: Initialisiere RuleEngine...
+2025-10-20 10:40:00,751 [INFO] mindestentinel.rule_engine: Regeln geladen: (5)
+2025-10-20 10:40:00,762 [INFO] mindestentinel.rule_engine: Regel-Signatur erfolgreich verifiziert
+2025-10-20 10:40:00,763 [INFO] mindestentinel.rule_engine: Starte Regeldatei-Überwachung (Intervall: 30 Sekunden)...
+2025-10-20 10:40:00,763 [INFO] mindestentinel.rule_engine: RuleEngine initialisiert mit 5 Regeln.
+2025-10-20 10:40:00,763 [INFO] mindestentinel.main: RuleEngine initialisiert.
+2025-10-20 10:40:00,763 [INFO] mindestentinel.main: Regeln geladen: (5)
+2025-10-20 10:40:00,763 [INFO] mindestentinel.main: Initialisiere AIBrain...
+2025-10-20 10:40:00,763 [INFO] mindestentinel.ai_engine: AIBrain initialisiert.
+2025-10-20 10:40:00,763 [INFO] mindestentinel.ai_engine: ModelManager injiziert.
+2025-10-20 10:40:00,763 [INFO] mindestentinel.main: ModelManager injiziert.
+2025-10-20 10:40:00,764 [INFO] mindestentinel.main: Initialisiere Wissensdatenbank...
+2025-10-20 10:40:00,774 [INFO] mindestentinel.knowledge_base: Datenbankstruktur initialisiert.
+2025-10-20 10:40:00,774 [INFO] mindestentinel.knowledge_base: Wissensdatenbank initialisiert: data/knowledge/knowledge.db
+2025-10-20 10:40:00,774 [INFO] mindestentinel.main: Wissensdatenbank initialisiert.
+2025-10-20 10:40:00,774 [INFO] mindestentinel.multi_model_orchestrator: MultiModelOrchestrator initialisiert.
+2025-10-20 10:40:00,774 [INFO] mindestentinel.main: MultiModelOrchestrator initialisiert.
+2025-10-20 10:40:00,775 [INFO] mindestentinel.main: RuleEngine injiziert.
+2025-10-20 10:40:00,775 [INFO] mindestentinel.main: Initialisiere ProtectionModule...
+2025-10-20 10:40:00,775 [INFO] mindestentinel.protection_module: ProtectionModule initialisiert
+2025-10-20 10:40:00,775 [INFO] mindestentinel.main: ProtectionModule initialisiert (Positional-Argument).
+2025-10-20 10:40:00,775 [INFO] mindestentinel.main: Initialisiere UserManager...
+2025-10-20 10:40:00,781 [INFO] mindestentinel.user_manager: Standard-Admin-Benutzer 'admin' existiert bereits
+2025-10-20 10:40:00,781 [INFO] mindestentinel.user_manager: Benutzerdatenbankstruktur initialisiert.
+2025-10-20 10:40:00,782 [INFO] mindestentinel.user_manager: UserManager initialisiert.
+2025-10-20 10:40:00,782 [INFO] mindestentinel.main: Initialisiere AuthManager...
+2025-10-20 10:40:01,070 [WARNING] mindestentinel.auth_manager: MIND_JWT_SECRET nicht gesetzt. Verwende generierten Schlüssel (NICHT FÜR PRODUKTION)
+2025-10-20 10:40:01,070 [INFO] mindestentinel.auth_manager: Generierter SECRET_KEY: 8-3pTIfCH_...
+2025-10-20 10:40:01,070 [INFO] mindestentinel.auth_manager: AuthManager initialisiert
+2025-10-20 10:40:01,071 [INFO] mindestentinel.auth_manager: SECRET_KEY: 8-3pTIfCH_... (NICHT FÜR PRODUKTION)
+2025-10-20 10:40:01,071 [INFO] mindestentinel.main: AuthManager erfolgreich initialisiert.
+2025-10-20 10:40:01,071 [INFO] mindestentinel.main: Initialisiere ModelCloner...
+2025-10-20 10:40:01,087 [INFO] mindestentinel.model_cloner: ModelCloner initialisiert. Backup-Verzeichnis: data/models/backups
+2025-10-20 10:40:01,087 [INFO] mindestentinel.main: ModelCloner initialisiert.
+2025-10-20 10:40:01,087 [INFO] mindestentinel.main: Initialisiere KnowledgeTransfer...
+2025-10-20 10:40:01,102 [INFO] mindestentinel.knowledge_transfer: KnowledgeTransfer initialisiert.
+2025-10-20 10:40:01,102 [INFO] mindestentinel.main: KnowledgeTransfer initialisiert.
+2025-10-20 10:40:01,102 [INFO] mindestentinel.main: Initialisiere ModelTrainer...
+2025-10-20 10:40:01,629 [INFO] mindestentinel.model_trainer: ModelTrainer initialisiert.
+2025-10-20 10:40:01,629 [INFO] mindestentinel.main: ModelTrainer initialisiert.
+2025-10-20 10:40:01,629 [INFO] mindestentinel.main: Initialisiere SystemMonitor...
+2025-10-20 10:40:01,629 [INFO] mindestentinel.system_monitor: SystemMonitor initialisiert.
+2025-10-20 10:40:01,630 [INFO] mindestentinel.main: SystemMonitor initialisiert.
+2025-10-20 10:40:01,630 [INFO] mindestentinel.main: Initialisiere den autonomen Lernzyklus...
+2025-10-20 10:40:01,644 [INFO] mindestentinel.autonomous_loop: AutonomousLoop mit 6 Positional-Argumenten initialisiert
+2025-10-20 10:40:01,644 [INFO] mindestentinel.autonomous_loop: AutonomousLoop initialisiert
+2025-10-20 10:40:01,645 [INFO] mindestentinel.main: Autonomer Lernzyklus initialisiert (Positional-Argumente Variante 1).
+2025-10-20 10:40:10,414 [INFO] mindestentinel.config: Logging konfiguriert. Logs werden gespeichert in: logs
+2025-10-20 10:40:16,021 [INFO] mindestentinel.config: Logging konfiguriert. Logs werden gespeichert in: logs
+2025-10-20 10:40:21,642 [INFO] mindestentinel.config: Logging konfiguriert. Logs werden gespeichert in: logs
+2025-10-20 10:40:27,009 [INFO] mindestentinel.config: Logging konfiguriert. Logs werden gespeichert in: logs
+2025-10-20 10:40:32,507 [INFO] mindestentinel.config: Logging konfiguriert. Logs werden gespeichert in: logs
+2025-10-20 10:40:37,719 [INFO] mindestentinel.main: PluginManager erfolgreich initialisiert.
+2025-10-20 10:40:37,719 [INFO] mindestentinel.main: Aktiviere autonomen Lernzyklus...
+2025-10-20 10:40:37,720 [INFO] mindestentinel.autonomous_loop: Starte autonomen Lernzyklus-Thread
+2025-10-20 10:40:37,720 [INFO] mindestentinel.autonomous_loop: Autonomer Lernzyklus aktiviert
+2025-10-20 10:40:37,720 [INFO] mindestentinel.autonomous_loop: Führe autonomen Lernschritt durch
+2025-10-20 10:40:37,720 [INFO] mindestentinel.main: Autonomer Lernzyklus aktiviert.
+2025-10-20 10:40:37,721 [INFO] mindestentinel.main: Plugins auto-loaded: 0
+2025-10-20 10:40:37,722 [INFO] mindestentinel.ai_engine: AIBrain gestartet.
+2025-10-20 10:40:37,722 [INFO] mindestentinel.main: AIBrain gestartet.
+2025-10-20 10:40:37,722 [INFO] mindestentinel.main: REST API erfolgreich initialisiert
+2025-10-20 10:40:37,722 [INFO] mindestentinel.main: Starting REST API on 0.0.0.0:8000
+2025-10-20 10:40:37,803 [INFO] mindestentinel.api.rest: Erstelle REST API...
+2025-10-20 10:40:37,807 [INFO] mindestentinel.api.rest: REST API erfolgreich initialisiert
+2025-10-20 10:40:37,831 [INFO] mindestentinel.autonomous_loop: Aktualisiere Wissen...
+2025-10-20 10:40:37,831 [INFO] mindestentinel.autonomous_loop: Wissen aktualisiert
+2025-10-20 10:40:37,831 [INFO] mindestentinel.autonomous_loop: Trainiere Modelle...
+2025-10-20 10:40:37,831 [INFO] mindestentinel.autonomous_loop: Modelltraining abgeschlossen
+2025-10-20 10:40:37,831 [INFO] mindestentinel.autonomous_loop: Bewerte Modelle...
+2025-10-20 10:40:37,831 [INFO] mindestentinel.autonomous_loop: Modellbewertung abgeschlossen
+2025-10-20 10:40:37,832 [INFO] mindestentinel.autonomous_loop: Autonomer Lernschritt abgeschlossen
+2025-10-20 10:40:37,845 [INFO] mindestentinel.main: Starte REST API mit workers=1, reload=False (Windows=True, Debugging=True)
+2025-10-20 10:40:47,728 [INFO] mindestentinel.main: REST API gestartet und läuft im Hintergrund
+2025-10-20 10:40:47,729 [INFO] mindestentinel.main: System shutdown complete.
