@@ -1,0 +1,31 @@
+# Auto-generated stubs for optional heavy dependencies
+# These raise RuntimeError when used, informing the user that the real package is required.
+class _MissingDependencyProxy:
+    def __init__(self, name):
+        self._name = name
+    def __call__(self, *args, **kwargs):
+        raise RuntimeError(f"Dependency '{self._name}' is not installed. Install it to use this functionality.")
+    def __getattr__(self, item):
+        raise RuntimeError(f"Dependency '{self._name}' is not installed. Install it to use this functionality.")
+
+# transformers placeholders
+class AutoModelForCausalLM(_MissingDependencyProxy): pass
+class AutoTokenizer(_MissingDependencyProxy): pass
+AutoModelForCausalLM = _MissingDependencyProxy('transformers.AutoModelForCausalLM')
+AutoTokenizer = _MissingDependencyProxy('transformers.AutoTokenizer')
+
+# torch placeholder
+class TensorPlaceholder(_MissingDependencyProxy): pass
+Tensor = _MissingDependencyProxy('torch.Tensor')
+
+# yaml placeholder
+def safe_load(*args, **kwargs):
+    raise RuntimeError("PyYAML (yaml) is not installed. Install pyyaml to use YAML features.")
+
+def load(*args, **kwargs):
+    raise RuntimeError("PyYAML (yaml) is not installed. Install pyyaml to use YAML features.")
+
+# convenience objects
+transformers = _MissingDependencyProxy('transformers')
+torch = _MissingDependencyProxy('torch')
+yaml = _MissingDependencyProxy('yaml')

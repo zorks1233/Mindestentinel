@@ -10,11 +10,7 @@ import sys
 import logging
 import argparse
 try:
-
-    from transformers import AutoModelForCausalLM, AutoTokenizer
-except Exception:
-    from src.core._stubs import AutoModelForCausalLM, AutoTokenizer
-
+try:\n    from transformers import AutoModelForCausalLM, AutoTokenizer\nexcept Exception:\n    from src.core._stubs import AutoModelForCausalLM, AutoTokenizer\n
 except Exception:
     AutoModelForCausalLM = None
 AutoTokenizer = None

@@ -45,6 +45,9 @@ def _safe_from_pretrained(cls, *args, **kwargs):
 # --- end helper ---
 
 
+except Exception:
+    AutoModelForCausalLM = None
+AutoTokenizer = None
 
 logger = logging.getLogger("mindestentinel.model_manager")
 

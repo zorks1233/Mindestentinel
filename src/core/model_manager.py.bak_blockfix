@@ -45,6 +45,9 @@ def _safe_from_pretrained(cls, *args, **kwargs):
 # --- end helper ---
 
 
+except Exception:
+    AutoModelForCausalLM = None
+AutoTokenizer = None
 
 logger = logging.getLogger("mindestentinel.model_manager")
 
@@ -130,35 +133,47 @@ class ModelManager:
                     # Versuche, das Modell zu laden
                     model_path = os.path.join(self.models_dir, model_name)
                     model = None
-                    _model_cls = globals().get('AutoModelForCausalLM') or getattr(globals().get('transformers', None) or __import__('types').SimpleNamespace(), 'AutoModelForCausalLM', None)
-                    if callable(_model_cls):
-                        try:
-                            model = _model_cls.from_pretrained(model_path)
-                        except Exception as e:
-                            LOG.warning("Failed to load model for %s: %s", model_path, e)
-                            model = None
-                    else:
-                        LOG.warning("AutoModelForCausalLM not available; skipping model load for %s", model_path)
-                        model = None
+        _model_cls = globals().get('AutoModelForCausalLM') or getattr(globals().get('transformers', None) or __import__('types').SimpleNamespace(), 'AutoModelForCausalLM', None)
+        if callable(_model_cls):
+            try:
+                model = _model_cls.from_pretrained(model_path)
+            except Exception as e:
+                LOG.warning("Failed to load model for %s: %s", model_path, e)
+                model = None
+        else:
+            LOG.warning("AutoModelForCausalLM not available; skipping model load for %s", model_path)
+            model = None
 
-                    tokenizer = None
-                    _tokenizer_cls = globals().get('AutoTokenizer') or getattr(globals().get('transformers', None) or __import__('types').SimpleNamespace(), 'AutoTokenizer', None)
-                    if callable(_tokenizer_cls):
-                        try:
-                            tokenizer = _tokenizer_cls.from_pretrained(model_path)
-                        except Exception as e:
-                            LOG.warning("Failed to load tokenizer for %s: %s", model_path, e)
-                            tokenizer = None
-                    else:
-                        LOG.warning("AutoTokenizer not available; skipping tokenizer load for %s", model_path)
-                        tokenizer = None
+        tokenizer = None
+        _tokenizer_cls = globals().get('AutoTokenizer') or getattr(globals().get('transformers', None) or __import__('types').SimpleNamespace(), 'AutoTokenizer', None)
+        if callable(_tokenizer_cls):
+            try:
+                tokenizer = _tokenizer_cls.from_pretrained(model_path)
+            except Exception as e:
+                LOG.warning("Failed to load tokenizer for %s: %s", model_path, e)
+                tokenizer = None
+        else:
+            LOG.warning("AutoTokenizer not available; skipping tokenizer load for %s", model_path)
+            tokenizer = None
 
+_tokenizer_cls = globals().get('AutoTokenizer') or (getattr(globals().get('transformers', None) or __import__('types').SimpleNamespace(), 'AutoTokenizer', None))
+if callable(_tokenizer_cls):
+    try:
+        tokenizer = _tokenizer_cls.from_pretrained(model_path)
+    except Exception as e:
+        LOG.warning("Failed to load tokenizer for %s: %s", model_path, e)
+        tokenizer = None
+else:
+    LOG.warning("AutoTokenizer not available; skipping tokenizer load for %s", model_path)
+    tokenizer = None
+                    
                     # Speichere das Modell
                     self.models[model_name] = {
                         "model": model,
                         "tokenizer": tokenizer
                     }
-
+                    
+                    # Lade Metadaten, falls vorhanden
                     metadata_path = os.path.join(model_path, "metadata.json")
                     if os.path.exists(metadata_path):
                         with open(metadata_path, 'r') as f:

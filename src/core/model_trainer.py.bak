@@ -12,15 +12,10 @@ import datetime
 try:
     import torch
 except Exception:
-    import src.core._stubs as _stubs
-    torch = _stubs.torch
+    torch = None
 from typing import Dict, Any, Optional, List, Tuple
 try:
-
     from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments, Trainer
-except Exception:
-    from src.core._stubs import AutoModelForCausalLM, AutoTokenizer, TrainingArguments, Trainer
-
 except Exception:
     AutoModelForCausalLM = None
 AutoTokenizer = None
