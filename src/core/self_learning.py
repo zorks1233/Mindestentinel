@@ -1,385 +1,403 @@
-# src/core/self_learning.py
 """
-self_learning.py - Modul für autonome Lernmechanismen und Wissensakquisition
-
-Dieses Modul implementiert den autonomen Lernprozess für Mindestentinel.
-Es ermöglicht das Sammeln von Wissen aus Benutzerinteraktionen, die Verarbeitung
-dieser Daten und die Integration neuer Erkenntnisse in das System.
-
-Hauptfunktionen:
-- Batch-Learning aus Benutzerinteraktionen
-- Wissensextraktion und -verdichtung
-- Integration neuer Erkenntnisse in das Wissenbasis
-- Metriken für Lernerfolg
+self_learning.py
+Implementiert das selbstlernende System des Mindestentinel-Frameworks.
+Ermöglicht kontinuierliches Lernen und Anpassung basierend auf Erfahrungen.
 """
 
-import re
-import time
 import logging
-import datetime
-from typing import Dict, List, Optional, Any
-from collections import Counter
-import threading
+import os
+import time
+import json
+from typing import Dict, Any, List, Optional, Callable, Tuple
+from pathlib import Path
 
-# Initialisiere Logger
 logger = logging.getLogger("mindestentinel.self_learning")
-logger.addHandler(logging.NullHandler())
 
-class SelfLearning:
+class SelfLearningEngine:
     """
-    Hauptklasse für den autonomen Lernprozess.
-    
-    Verwaltet die Extraktion, Verarbeitung und Integration von Wissen
-    aus Benutzerinteraktionen und anderen Quellen.
+    Hauptklasse für das selbstlernende System des Mindestentinel-Frameworks.
+    Ermöglicht kontinuierliches Lernen und Anpassung basierend auf Erfahrungen.
     """
     
-    def __init__(self, knowledge_base, model_manager=None, max_history: int = 10000):
+    def __init__(
+        self,
+        rule_engine: Optional['RuleEngine'] = None,
+        model_manager: Optional['ModelManager'] = None,
+        config: Optional[Dict[str, Any]] = None,
+        knowledge_base_path: str = "data/knowledge/self_learning.json"
+    ):
         """
-        Initialisiert das SelfLearning-Modul.
+        Initialisiert die SelfLearningEngine.
         
         Args:
-            knowledge_base: Instanz der Wissensdatenbank
-            model_manager: Optionaler ModelManager für Wissensverdichtung
-            max_history: Maximale Anzahl an gespeicherten Lernitems
+            rule_engine: Optional bereitgestellte RuleEngine-Instanz
+            model_manager: Optional bereitgestellter ModelManager
+            config: Optionale Konfigurationsparameter
+            knowledge_base_path: Pfad zur Wissensdatenbank
         """
-        self.knowledge_base = knowledge_base
+        logger.info("Initialisiere SelfLearningEngine...")
+        self.config = config or {}
+        self.rule_engine = rule_engine
         self.model_manager = model_manager
-        self.max_history = max_history
-        self._lock = threading.RLock()
-        self._incoming: List[str] = []
-        self.plugins = []
-        self._requests = {}  # Cache für GPU-Anfragen bis zur Persistenz
-        self.last_batch_time = 0
-        self.batch_interval = 30  # Sekunden zwischen Batch-Learning-Zyklen
-        logger.info("SelfLearning-Modul initialisiert.")
+        self.knowledge_base_path = knowledge_base_path
+        self.learning_active = True
+        self.learning_rate = self.config.get('learning_rate', 0.1)
+        self.memory_size = self.config.get('memory_size', 1000)
+        
+        # Lade oder erstelle Wissensdatenbank
+        self.knowledge_base = self._load_knowledge_base()
+        
+        # Initialisiere Lernhistorie
+        self.learning_history = []
+        
+        logger.info("SelfLearningEngine erfolgreich initialisiert")
     
-    def register_plugin(self, plugin_obj) -> None:
+    def start(self) -> None:
+        """Startet die SelfLearningEngine"""
+        logger.info("Starte SelfLearningEngine...")
+        self.learning_active = True
+        logger.info("SelfLearningEngine gestartet")
+    
+    def stop(self) -> None:
+        """Stoppt die SelfLearningEngine"""
+        logger.info("Stoppe SelfLearningEngine...")
+        self.learning_active = False
+        logger.info("SelfLearningEngine gestoppt")
+    
+    def is_active(self) -> bool:
+        """Gibt an, ob die SelfLearningEngine aktiv ist"""
+        return self.learning_active
+    
+    def process_experience(
+        self,
+        experience: Dict[str, Any],
+        reward: float,
+        context: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
         """
-        Registriert ein Plugin, das Lernitems vorverarbeiten kann.
+        Verarbeitet eine Erfahrung und passt das Wissen an.
         
         Args:
-            plugin_obj: Das Plugin-Objekt
-            
-        Raises:
-            ValueError: Wenn das Plugin kein 'name'-Attribut hat
-        """
-        if not hasattr(plugin_obj, "name"):
-            raise ValueError("Plugin muss 'name' Attribut besitzen")
-        
-        self.plugins.append(plugin_obj)
-        logger.info("Plugin für SelfLearning registriert: %s", plugin_obj.name)
-    
-    def learn_from_input(self, input_text: str) -> str:
-        """
-        Fügt Text zur Lern-Queue hinzu und persistiert minimal (schnell).
-        
-        Args:
-            input_text: Der zu verarbeitende Text
+            experience: Die zu verarbeitende Erfahrung
+            reward: Die Belohnung für die Erfahrung
+            context: Optionaler Kontext für die Verarbeitung
             
         Returns:
-            str: Statusmeldung
-            
-        Raises:
-            ValueError: Wenn input_text leer ist
+            Dict[str, Any]: Ergebnis der Verarbeitung
         """
-        if not input_text:
-            raise ValueError("input_text darf nicht leer sein")
+        if not self.learning_active:
+            logger.debug("SelfLearningEngine ist deaktiviert, überspringe Verarbeitung")
+            return {
+                "status": "skipped",
+                "message": "SelfLearningEngine ist deaktiviert"
+            }
         
-        with self._lock:
-            # Einfache Deduplizierung und Begrenzung der Historie
-            if len(self._incoming) >= self.max_history:
-                self._incoming.pop(0)
-            self._incoming.append(input_text)
+        logger.debug(f"Verarbeite Erfahrung mit Belohnung {reward}: {experience}")
+        
+        try:
+            # Speichere Erfahrung in der Lernhistorie
+            self._store_experience(experience, reward, context)
             
-            # Speichere in der Wissensdatenbank
-            self.knowledge_base.store("learning_queue", {
-                "text": input_text,
-                "timestamp": datetime.datetime.now().isoformat(),
-                "processed": False
-            })
+            # Aktualisiere das Wissen basierend auf der Erfahrung
+            learning_result = self._update_knowledge(experience, reward, context)
             
-            logger.debug("Neues Lernitem hinzugefügt (Queue-Länge: %d)", len(self._incoming))
-            return "Lernitem hinzugefügt"
+            # Speichere die aktualisierte Wissensdatenbank
+            self._save_knowledge_base()
+            
+            logger.debug("Erfahrung erfolgreich verarbeitet")
+            return {
+                "status": "success",
+                "result": learning_result
+            }
+        except Exception as e:
+            logger.error(f"Fehler bei der Verarbeitung der Erfahrung: {str(e)}")
+            return {
+                "status": "error",
+                "code": 500,
+                "message": f"Interner Fehler: {str(e)}"
+            }
     
-    def batch_learn(self, max_items: int = 32) -> int:
-        """
-        Führt Batch-Learning durch, indem unverarbeitete Interaktionen verarbeitet werden.
+    def _store_experience(
+        self,
+        experience: Dict[str, Any],
+        reward: float,
+        context: Optional[Dict[str, Any]] = None
+    ) -> None:
+        """Speichert eine Erfahrung in der Lernhistorie"""
+        timestamp = time.time()
+        self.learning_history.append({
+            "timestamp": timestamp,
+            "experience": experience,
+            "reward": reward,
+            "context": context
+        })
         
-        Args:
-            max_items: Maximale Anzahl an Items, die verarbeitet werden sollen
-            
-        Returns:
-            int: Anzahl der erfolgreich verarbeiteten Items
-        """
-        # Prüfe, ob genügend Zeit seit dem letzten Batch vergangen ist
-        current_time = time.time()
-        if current_time - self.last_batch_time < self.batch_interval:
-            logger.debug("Batch-Learning übersprungen (noch nicht genügend Zeit vergangen)")
-            return 0
-            
-        # Hole die neuesten Benutzerinteraktionen
-        interactions = self.knowledge_base.get_recent_interactions(limit=max_items)
+        # Begrenze die Größe der Lernhistorie
+        if len(self.learning_history) > self.memory_size:
+            self.learning_history = self.learning_history[-self.memory_size:]
+    
+    def _update_knowledge(
+        self,
+        experience: Dict[str, Any],
+        reward: float,
+        context: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """Aktualisiert das Wissen basierend auf einer Erfahrung"""
+        result = {
+            "knowledge_updates": 0,
+            "updated_categories": []
+        }
         
-        if not interactions:
-            logger.info("Keine unverarbeiteten Interaktionen gefunden.")
-            self.last_batch_time = current_time
-            return 0
+        # Extrahiere relevante Informationen aus der Erfahrung
+        category = experience.get("category", "general")
+        action = experience.get("action", "unknown")
+        outcome = experience.get("outcome", {})
         
-        processed = 0
-        for interaction in interactions:
-            try:
-                # Prüfe, ob die Interaktion bereits verarbeitet wurde
-                if interaction.get("processed", False):
-                    continue
-                    
-                # Extrahiere Wissen aus der Interaktion
-                knowledge = self._extract_knowledge(interaction)
+        # Erstelle oder aktualisiere den Kategorie-Eintrag
+        if category not in self.knowledge_base["categories"]:
+            self.knowledge_base["categories"][category] = {
+                "total_experiences": 0,
+                "total_reward": 0,
+                "actions": {}
+            }
+        
+        category_data = self.knowledge_base["categories"][category]
+        category_data["total_experiences"] += 1
+        category_data["total_reward"] += reward
+        
+        # Erstelle oder aktualisiere den Aktions-Eintrag
+        if action not in category_data["actions"]:
+            category_data["actions"][action] = {
+                "count": 0,
+                "total_reward": 0,
+                "last_outcome": None,
+                "parameters": {}
+            }
+        
+        action_data = category_data["actions"][action]
+        action_data["count"] += 1
+        action_data["total_reward"] += reward
+        action_data["last_outcome"] = outcome
+        
+        # Aktualisiere Parameter, falls vorhanden
+        if "parameters" in experience:
+            for param, value in experience["parameters"].items():
+                if param not in action_data["parameters"]:
+                    action_data["parameters"][param] = {
+                        "values": [],
+                        "average": value
+                    }
                 
-                # Speichere neues Wissen
-                if knowledge:
-                    self.knowledge_base.store("learning_items", knowledge)
-                    # Markiere Interaktion als verarbeitet
-                    interaction["processed"] = True
-                    processed += 1
-            except Exception as e:
-                logger.error(f"Fehler bei der Verarbeitung der Interaktion {interaction.get('id', 'unknown')}: {str(e)}")
+                param_data = action_data["parameters"][param]
+                param_data["values"].append(value)
+                
+                # Begrenze die Anzahl der gespeicherten Werte
+                if len(param_data["values"]) > 100:
+                    param_data["values"] = param_data["values"][-100:]
+                
+                # Berechne neuen Durchschnitt
+                param_data["average"] = sum(param_data["values"]) / len(param_data["values"])
         
-        # Aktualisiere die Metadaten für das Modell
-        if processed > 0:
-            model_name = self.knowledge_base.get_statistics().get("models_loaded", [])[0] if self.knowledge_base.get_statistics().get("models_loaded") else None
-            if model_name:
-                improvement = {
-                    "model": model_name,
-                    "items_processed": processed,
-                    "timestamp": datetime.datetime.now().isoformat()
+        # Berechne die aktuelle Belohnungsrate für diese Aktion
+        action_data["reward_rate"] = action_data["total_reward"] / action_data["count"]
+        
+        # Markiere Update
+        result["knowledge_updates"] += 1
+        if category not in result["updated_categories"]:
+            result["updated_categories"].append(category)
+        
+        return result
+    
+    def _load_knowledge_base(self) -> Dict[str, Any]:
+        """Lädt die Wissensdatenbank aus einer Datei"""
+        try:
+            # Stelle sicher, dass das Verzeichnis existiert
+            os.makedirs(os.path.dirname(self.knowledge_base_path), exist_ok=True)
+            
+            # Prüfe, ob die Datei existiert
+            if os.path.exists(self.knowledge_base_path):
+                with open(self.knowledge_base_path, 'r') as f:
+                    knowledge_base = json.load(f)
+                logger.debug(f"Wissensdatenbank geladen: {self.knowledge_base_path}")
+                return knowledge_base
+            else:
+                # Erstelle eine neue Wissensdatenbank
+                knowledge_base = {
+                    "version": "1.0",
+                    "created_at": time.time(),
+                    "categories": {}
                 }
-                self.knowledge_base.store("model_improvements", improvement)
-        
-        self.last_batch_time = current_time
-        logger.info(f"Batch-Learn abgeschlossen: {processed} Items verarbeitet")
-        return processed
-
-    def _extract_knowledge(self, interaction: Dict) -> Optional[Dict]:
-        """
-        Extrahiert Wissen aus einer Benutzerinteraktion.
-        
-        Args:
-            interaction: Die Benutzerinteraktion
-            
-        Returns:
-            Dict: Extrahiertes Wissen oder None, wenn nichts extrahiert werden konnte
-        """
-        # Extrahiere Schlüsselwörter aus der Frage
-        keywords = self._extract_keywords(interaction["query"])
-        
-        # Bestimme die Relevanz
-        relevance = self._determine_relevance(interaction["query"], interaction["response"])
-        
-        # Nur relevante Interaktionen verarbeiten
-        if relevance < 0.6:
-            return None
-        
-        return {
-            "query": interaction["query"],
-            "response": interaction["response"],
-            "keywords": keywords,
-            "relevance": relevance,
-            "timestamp": interaction["timestamp"]
-        }
-
-    def _extract_keywords(self, text: str) -> List[str]:
-        """Extrahiert Schlüsselwörter aus einem Text"""
-        # Entferne Satzzeichen und konvertiere zu Kleinbuchstaben
-        text = re.sub(r'[^\w\s]', '', text.lower())
-        
-        # Splitte in Wörter
-        words = text.split()
-        
-        # Filtere Stopwörter (vereinfachte Liste)
-        stop_words = ["der", "die", "das", "und", "oder", "aber", "ist", "war", "sind", "ein", "eine"]
-        keywords = [w for w in words if len(w) > 3 and w not in stop_words]
-        
-        # Gib die 5 häufigsten Wörter zurück
-        word_count = Counter(keywords)
-        return [word for word, _ in word_count.most_common(5)]
-        
-    def _determine_relevance(self, query: str, response: str) -> float:
-        """Bestimmt die Relevanz einer Interaktion"""
-        # Konvertiere zu Kleinbuchstaben und entferne Satzzeichen
-        query = re.sub(r'[^\w\s]', '', query.lower())
-        response = re.sub(r'[^\w\s]', '', response.lower())
-        
-        # Splitte in Wörter
-        query_words = set(query.split())
-        response_words = set(response.split())
-        
-        if not query_words:
-            return 0.0
-        
-        # Anteil der Query-Wörter, die in der Antwort vorkommen
-        overlap = len(query_words & response_words) / len(query_words)
-        
-        # Berücksichtige auch die Länge der Antwort
-        response_length = len(response.split())
-        length_factor = min(1.0, response_length / 50)
-        
-        # Berücksichtige auch die Antwortqualität (einfache Heuristik)
-        quality_factor = 0.7 if "error" not in response else 0.2
-        
-        return 0.5 * overlap + 0.3 * length_factor + 0.2 * quality_factor
-
-    def request_gpu_session(self, hours: float, reason: str, requester: str = "admin") -> str:
-        """
-        Erstelle einen Antrag für GPU-Sessions.
-        
-        Args:
-            hours: Gewünschte Dauer in Stunden
-            reason: Begründung für die Anfrage
-            requester: Anfragender Benutzer (Standard: admin)
-            
-        Returns:
-            str: Anfrage-ID
-        """
-        req_id = f"gpu_req_{int(time.time())}_{requester[:3]}"
-        
-        # Speichere die Anfrage
-        self._requests[req_id] = {
-            "hours": hours,
-            "reason": reason,
-            "requester": requester,
-            "status": "pending",
-            "timestamp": datetime.datetime.now().isoformat()
-        }
-        
-        # Speichere in der Wissensdatenbank
-        self.knowledge_base.store("gpu_requests", self._requests[req_id])
-        
-        logger.info("GPU-Session beantragt: %s (hours=%s) by %s", req_id, hours, requester)
-        return req_id
-
-    def get_gpu_request_status(self, req_id: str) -> Dict[str, Any]:
-        """
-        Gibt den Status einer GPU-Anfrage zurück.
-        
-        Args:
-            req_id: Anfrage-ID
-            
-        Returns:
-            Dict: Statusinformationen
-        """
-        # Hole den Status aus der Wissensdatenbank
-        requests = self.knowledge_base.query(
-            "SELECT * FROM gpu_requests WHERE id = ?", 
-            (req_id,)
-        )
-        
-        if requests:
-            return dict(requests[0])
-        
-        # Falls nicht in DB, prüfe den Cache
-        if req_id in self._requests:
-            return self._requests[req_id]
-            
-        return {"error": "Anfrage nicht gefunden"}
-
-    def perform_optimization(self) -> Dict[str, Any]:
-        """
-        Führt eine Optimierung des Systems durch.
-        
-        Returns:
-            Dict: Optimierungsergebnisse
-        """
-        # Hole Systemstatistiken
-        stats = self.knowledge_base.get_statistics()
-        
-        # Analysiere Wissenslücken
-        knowledge_gaps = self._identify_knowledge_gaps()
-        
-        # Erstelle Optimierungsplan
-        optimization_plan = {
-            "timestamp": datetime.datetime.now().isoformat(),
-            "current_model_count": len(stats.get("models_loaded", [])),
-            "knowledge_entries": stats["total_entries"],
-            "identified_gaps": len(knowledge_gaps),
-            "suggested_actions": []
-        }
-        
-        # Generiere Vorschläge basierend auf den Lücken
-        for gap in knowledge_gaps[:3]:  # Maximal 3 Vorschläge
-            optimization_plan["suggested_actions"].append({
-                "action": "expand_knowledge",
-                "target": gap["concept"],
-                "priority": gap["priority"],
-                "estimated_effort": gap["complexity"]
-            })
-        
-        # Speichere den Optimierungsplan
-        self.knowledge_base.store("optimization_plans", optimization_plan)
-        
-        logger.info("Optimierungsplan erstellt mit %d Vorschlägen", len(optimization_plan["suggested_actions"]))
-        return optimization_plan
-
-    def _identify_knowledge_gaps(self) -> List[Dict]:
-        """
-        Identifiziert Wissenslücken durch Analyse der bestehenden Wissensdatenbank.
-        
-        Returns:
-            List[Dict]: Eine Liste von identifizierten Wissenslücken
-        """
-        # In einer realen Implementierung würde dies komplexe Analysen durchführen
-        # Für diesen Stub generieren wir einige Beispieldaten
-        return [
-            {"id": "gap_001", "concept": "Quantenverschränkung", "priority": 4, "complexity": 4},
-            {"id": "gap_002", "concept": "Neuronale Netzoptimierung", "priority": 3, "complexity": 3},
-            {"id": "gap_003", "concept": "Ethik in autonomen Systemen", "priority": 5, "complexity": 2}
-        ]
-
-    def _bg_loop(self) -> None:
-        """
-        Hintergrund-Loop für automatisches Batch-Learning.
-        """
-        logger.info("SelfLearning Hintergrund-Loop gestartet.")
-        
-        while True:
-            try:
-                # Prüfe auf neue Lernitems
-                self.batch_learn()
-                
-                # Warte vor dem nächsten Zyklus
-                time.sleep(self.batch_interval)
-            except Exception as e:
-                logger.error(f"Fehler im SelfLearning Hintergrund-Loop: {str(e)}", exc_info=True)
-                time.sleep(10)  # Warte länger nach einem Fehler
-
-    def start_background_loop(self) -> None:
-        """
-        Startet den Hintergrund-Loop für automatisches Batch-Learning.
-        """
-        bg_thread = threading.Thread(target=self._bg_loop, daemon=True)
-        bg_thread.start()
-        logger.info("SelfLearning Hintergrund-Loop gestartet.")
+                self._save_knowledge_base(knowledge_base)
+                logger.info(f"Neue Wissensdatenbank erstellt: {self.knowledge_base_path}")
+                return knowledge_base
+        except Exception as e:
+            logger.error(f"Fehler beim Laden der Wissensdatenbank: {str(e)}")
+            # Erstelle eine neue Wissensdatenbank im Fehlerfall
+            return {
+                "version": "1.0",
+                "created_at": time.time(),
+                "categories": {}
+            }
     
-    def get_statistics(self) -> Dict[str, Any]:
+    def _save_knowledge_base(self, knowledge_base: Optional[Dict[str, Any]] = None) -> None:
+        """Speichert die Wissensdatenbank in einer Datei"""
+        try:
+            # Verwende die aktuelle Wissensdatenbank, wenn keine übergeben wurde
+            if knowledge_base is None:
+                knowledge_base = self.knowledge_base
+            
+            # Stelle sicher, dass das Verzeichnis existiert
+            os.makedirs(os.path.dirname(self.knowledge_base_path), exist_ok=True)
+            
+            # Speichere die Wissensdatenbank
+            with open(self.knowledge_base_path, 'w') as f:
+                json.dump(knowledge_base, f, indent=2)
+            
+            logger.debug(f"Wissensdatenbank gespeichert: {self.knowledge_base_path}")
+        except Exception as e:
+            logger.error(f"Fehler beim Speichern der Wissensdatenbank: {str(e)}")
+    
+    def get_knowledge_base(self) -> Dict[str, Any]:
+        """Gibt die aktuelle Wissensdatenbank zurück"""
+        return self.knowledge_base
+    
+    def get_learning_history(self, limit: int = 100) -> List[Dict[str, Any]]:
+        """Gibt die Lernhistorie zurück (begrenzt auf die letzten Einträge)"""
+        return self.learning_history[-limit:]
+    
+    def get_best_action(self, category: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
-        Gibt Statistiken über den Lernprozess zurück.
+        Gibt die beste Aktion für eine Kategorie basierend auf dem Wissen zurück.
         
+        Args:
+            category: Die Kategorie, für die die beste Aktion gesucht wird
+            context: Optionaler Kontext für die Entscheidung
+            
         Returns:
-            Dict: Statistikinformationen
+            Dict[str, Any]: Die beste Aktion mit Metadaten
         """
-        # Hole Lernstatistiken aus der Wissensdatenbank
-        learning_stats = self.knowledge_base.query(
-            "SELECT COUNT(*) as total, AVG(relevance) as avg_relevance FROM learning_items"
-        )
+        logger.debug(f"Suche beste Aktion für Kategorie: {category}")
         
-        # Hole Optimierungsstatistiken
-        optimization_stats = self.knowledge_base.query(
-            "SELECT COUNT(*) as total_plans FROM optimization_plans"
-        )
+        # Prüfe, ob die Kategorie existiert
+        if category not in self.knowledge_base["categories"]:
+            logger.warning(f"Kategorie nicht gefunden: {category}")
+            return {
+                "action": "default",
+                "confidence": 0.0,
+                "reason": "Kategorie nicht gefunden"
+            }
+        
+        category_data = self.knowledge_base["categories"][category]
+        
+        # Prüfe, ob es Aktionen für die Kategorie gibt
+        if not category_data["actions"]:
+            logger.warning(f"Keine Aktionen für Kategorie gefunden: {category}")
+            return {
+                "action": "default",
+                "confidence": 0.0,
+                "reason": "Keine Aktionen vorhanden"
+            }
+        
+        # Finde die Aktion mit der höchsten Belohnungsrate
+        best_action = None
+        best_reward_rate = float('-inf')
+        
+        for action, action_data in category_data["actions"].items():
+            reward_rate = action_data.get("reward_rate", float('-inf'))
+            if reward_rate > best_reward_rate:
+                best_action = action
+                best_reward_rate = reward_rate
+        
+        # Berechne das Vertrauen basierend auf der Anzahl der Erfahrungen
+        confidence = min(1.0, category_data["total_experiences"] / 10.0)
+        
+        logger.debug(f"Gefundene beste Aktion: {best_action} mit Belohnungsrate {best_reward_rate} und Vertrauen {confidence}")
         
         return {
-            "total_learned_items": learning_stats[0]["total"] if learning_stats else 0,
-            "average_relevance": learning_stats[0]["avg_relevance"] if learning_stats else 0.0,
-            "total_optimization_plans": optimization_stats[0]["total_plans"] if optimization_stats else 0,
-            "last_batch_time": self.last_batch_time,
-            "queue_length": len(self._incoming)
+            "action": best_action,
+            "reward_rate": best_reward_rate,
+            "confidence": confidence,
+            "total_experiences": category_data["total_experiences"]
         }
+    
+    def adapt_to_feedback(
+        self,
+        experience_id: str,
+        feedback: Dict[str, Any],
+        context: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """
+        Passt das Wissen basierend auf Nutzerfeedback an.
+        
+        Args:
+            experience_id: ID der Erfahrung, auf die sich das Feedback bezieht
+            feedback: Das Nutzerfeedback
+            context: Optionaler Kontext für die Anpassung
+            
+        Returns:
+            Dict[str, Any]: Ergebnis der Anpassung
+        """
+        logger.debug(f"Verarbeite Feedback für Erfahrung {experience_id}: {feedback}")
+        
+        try:
+            # Hier würde die Anpassung basierend auf dem Feedback stattfinden
+            # In einer realen Implementierung würden die Gewichte angepasst
+            # und das Wissen aktualisiert werden
+            
+            # Platzhalter für die konkrete Implementierung
+            adjustment_factor = feedback.get("adjustment_factor", 1.0)
+            new_knowledge = {}
+            
+            # Simuliere eine Anpassung
+            for category, category_data in self.knowledge_base["categories"].items():
+                for action, action_data in category_data["actions"].items():
+                    # Passe die Belohnungsrate basierend auf dem Feedback an
+                    if "reward_rate" in action_data:
+                        action_data["reward_rate"] *= adjustment_factor
+                        new_knowledge[f"{category}.{action}"] = action_data["reward_rate"]
+            
+            # Speichere die aktualisierte Wissensdatenbank
+            self._save_knowledge_base()
+            
+            logger.debug("Feedback erfolgreich verarbeitet")
+            return {
+                "status": "success",
+                "adjusted_knowledge": new_knowledge
+            }
+        except Exception as e:
+            logger.error(f"Fehler bei der Verarbeitung des Feedbacks: {str(e)}")
+            return {
+                "status": "error",
+                "code": 500,
+                "message": f"Interner Fehler: {str(e)}"
+            }
+    
+    def get_status(self) -> Dict[str, Any]:
+        """Gibt den aktuellen Status der SelfLearningEngine zurück"""
+        return {
+            "status": "running" if self.learning_active else "stopped",
+            "knowledge_base_size": len(self.knowledge_base["categories"]),
+            "learning_history_size": len(self.learning_history),
+            "memory_size": self.memory_size,
+            "learning_rate": self.learning_rate,
+            "timestamp": time.time()
+        }
+    
+    def reset(self) -> None:
+        """Setzt die SelfLearningEngine auf den Ausgangszustand zurück"""
+        logger.info("Setze SelfLearningEngine zurück...")
+        
+        # Erstelle eine neue Wissensdatenbank
+        self.knowledge_base = {
+            "version": "1.0",
+            "created_at": time.time(),
+            "categories": {}
+        }
+        
+        # Leere die Lernhistorie
+        self.learning_history = []
+        
+        # Speichere die zurückgesetzte Wissensdatenbank
+        self._save_knowledge_base()
+        
+        logger.info("SelfLearningEngine erfolgreich zurückgesetzt")

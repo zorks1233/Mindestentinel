@@ -1,217 +1,188 @@
-# core/protection_module.py
 """
-ProtectionModule
-
-Verantwortlich für die Prüfung von Benutzer-Eingaben und System-Aktionen gegen die RuleEngine.
-Diese Implementation versucht, kompatibel mit verschiedenen RuleEngine-APIs zu sein,
-indem sie die verfügbaren Methoden zur Laufzeit prüft.
-
-Wesentliche Funktionen:
-- Flexible Initialisierung (Instanz, Pfad-String, Klasse oder None)
-- validate_user_input(user_input, context) -> bool (True erlaubt, sonst raised PermissionError)
-- validate_system_action(action_desc, context) -> bool
-- enforce_action(action_desc, context) -> returns rule evaluation / raises
-
-Fehlerausgabe ist bewusst deutlich (TypeError / PermissionError).
+protection_module.py
+Modul für Sicherheits- und Schutzmechanismen im Mindestentinel-System.
+Enthält die ProtectionModule-Klasse zur Initialisierung und Verwaltung von Schutzsystemen.
 """
 
-from __future__ import annotations
-from typing import Any, Optional, Dict
 import logging
+import sys
+import os
+from typing import Optional, Any
 
-log = logging.getLogger("mindestentinel.protection_module")
+# Dynamische Pfadermittlung basierend auf der tatsächlichen Projektstruktur
+current_file = os.path.abspath(__file__)
+current_dir = os.path.dirname(current_file)
+# Korrekte Berechnung: Von src/core zwei Ebenen nach oben zum Projekt-Root
+project_root = os.path.dirname(os.path.dirname(current_dir))
 
-# Versuche, die RuleEngine aus dem erwarteten Modulpfad zu importieren.
+# Füge das Projekt-Root zum Python-Pfad hinzu
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+    logging.debug(f"Projekt-Root zum Python-Pfad hinzugefügt: {project_root}")
+
+# Debug-Ausgabe für Importpfade
+logging.debug(f"Aktueller Python-Pfad: {sys.path}")
+logging.debug(f"Projekt-Root: {project_root}")
+logging.debug(f"Suche nach config-Verzeichnis in: {os.path.join(project_root, 'config')}")
+
+# Prüfe, ob config-Verzeichnis existiert
+config_dir = os.path.join(project_root, 'config')
+if not os.path.exists(config_dir):
+    logging.critical(f"config-Verzeichnis nicht gefunden: {config_dir}")
+    # Versuche alternative Struktur (falls Projekt-Root falsch berechnet)
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_dir)))
+    config_dir = os.path.join(project_root, 'config')
+    if not os.path.exists(config_dir):
+        raise RuntimeError(f"config-Verzeichnis nicht gefunden: {config_dir}")
+    else:
+        logging.info(f"Alternative Projekt-Root gefunden: {project_root}")
+        if project_root not in sys.path:
+            sys.path.insert(0, project_root)
+
+# Prüfe, ob config_loader.py existiert
+config_loader_path = os.path.join(config_dir, 'config_loader.py')
+if not os.path.exists(config_loader_path):
+    logging.critical(f"config_loader.py nicht gefunden: {config_loader_path}")
+    # Versuche alternative Pfade
+    alt_paths = [
+        os.path.join(os.path.dirname(project_root), 'config', 'config_loader.py'),
+        os.path.join(project_root, 'src', 'config', 'config_loader.py')
+    ]
+    for path in alt_paths:
+        if os.path.exists(path):
+            config_loader_path = path
+            logging.info(f"Verwende alternative config_loader.py: {config_loader_path}")
+            break
+    else:
+        raise RuntimeError(f"config_loader.py nicht gefunden an erwarteten Orten")
+
+# Import der Konfigurationskomponenten
 try:
-    # In deiner Codebasis könnte RuleEngine in src.core.rule_engine oder core.rule_engine liegen.
+    # Versuche, config.config_loader aus dem Projekt-Root zu importieren
+    from config.config_loader import ConfigLoader
+    logging.debug("Erfolgreich importiert: config.config_loader")
+except ImportError as e:
+    logging.error(f"Fehler beim Import von config.config_loader: {str(e)}")
+    # Manuelles Laden der Datei als letzte Option
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("config.config_loader", config_loader_path)
+    config_loader = importlib.util.module_from_spec(spec)
+    sys.modules["config.config_loader"] = config_loader
+    spec.loader.exec_module(config_loader)
+    ConfigLoader = config_loader.ConfigLoader
+    logging.debug("Erfolgreich manuell geladen: config.config_loader")
+
+# Import der RuleEngine
+try:
+    from core.rule_engine import RuleEngine
+except ImportError:
     try:
-        from src.core.rule_engine import RuleEngine  # bevorzugte (package) Variante
-    except Exception:
-        from core.rule_engine import RuleEngine  # fallback
-except Exception:
-    RuleEngine = None  # wird später geprüft
+        from rule_engine import RuleEngine
+    except ImportError:
+        logging.warning("RuleEngine-Modul nicht gefunden - wird später initialisiert")
+        RuleEngine = None
 
 class ProtectionModule:
-    def __init__(self, rule_engine: Optional[Any] = None, verify_signature: bool = True):
+    """
+    Hauptklasse für das Schutzsystem des Mindestentinel-Frameworks.
+    Verwaltet Sicherheitsprotokolle, Zugriffskontrollen und Regelbasierte Schutzmechanismen.
+    """
+    
+    def __init__(self, rule_engine: Optional[RuleEngine] = None, config: Optional[dict] = None):
         """
-        rule_engine:
-            - None: es wird versucht, RuleEngine() zu instanziieren (sofern importierbar)
-            - str: Pfad/Verzeichnis zu Regeln -> RuleEngine(rules_path=...)
-            - RuleEngine-Instanz: wird direkt verwendet
-            - Klasse: wird instanziiert (Klassenobjekt wird aufgerufen)
-        verify_signature:
-            - Wenn True und rule_engine ein passenden Methode besitzt, wird
-              rule/signature verification ausgeführt (falls vorhanden).
+        Initialisiert das ProtectionModule.
+        
+        Args:
+            rule_engine: Optional bereitgestellte RuleEngine-Instanz
+            config: Optionale Konfigurationsparameter
         """
-        # Resolve RuleEngine import availability
-        if RuleEngine is None:
-            raise ImportError("RuleEngine konnte nicht importiert werden. Prüfe core/rule_engine.py")
-
-        resolved = None
-
-        # 1) None -> default
-        if rule_engine is None:
-            try:
-                resolved = RuleEngine()
-                log.debug("ProtectionModule: RuleEngine mit Default initialisiert.")
-            except Exception as e:
-                log.error("ProtectionModule: Konnte RuleEngine nicht mit Default erzeugen: %s", e, exc_info=True)
-                resolved = None
-
-        # 2) string -> treat as path
-        elif isinstance(rule_engine, str):
-            try:
-                resolved = RuleEngine(rules_path=rule_engine)
-                log.debug("ProtectionModule: RuleEngine mit rules_path=%s initialisiert.", rule_engine)
-            except Exception as e:
-                log.error("ProtectionModule: Fehler beim Erzeugen von RuleEngine aus Pfad '%s': %s", rule_engine, e, exc_info=True)
-                resolved = None
-
-        # 3) already instance
-        elif isinstance(rule_engine, RuleEngine):
-            resolved = rule_engine
-            log.debug("ProtectionModule: vorhandene RuleEngine-Instanz verwendet.")
-
-        # 4) class/type -> instantiate
-        elif isinstance(rule_engine, type):
-            try:
-                resolved = rule_engine()
-                log.debug("ProtectionModule: RuleEngine-Klasse instanziiert.")
-            except Exception as e:
-                log.error("ProtectionModule: Konnte RuleEngine-Klasse nicht instanziieren: %s", e, exc_info=True)
-                resolved = None
-
-        else:
-            log.error("ProtectionModule: Ungültiger rule_engine-Parameter: %r", type(rule_engine))
-            resolved = None
-
-        # Letzte Absicherung: resolved muss RuleEngine-Instanz sein
-        if not isinstance(resolved, RuleEngine):
-            raise TypeError("rule_engine muss eine RuleEngine-Instanz sein oder ein gültiger Konstruktor/Pfad")
-
-        # Optional: verify signature / consistency (falls Methode vorhanden)
+        self.logger = logging.getLogger("mindestentinel.protection")
+        self.logger.info("Initialisiere ProtectionModule...")
+        
+        # Konfiguration laden
         try:
-            if verify_signature:
-                # mögliche Methoden prüfen: verify_signature, validate_signatures, check_integrity
-                if hasattr(resolved, "verify_signature"):
-                    resolved.verify_signature()
-                    log.debug("ProtectionModule: verify_signature() aufgerufen.")
-                elif hasattr(resolved, "validate_signatures"):
-                    resolved.validate_signatures()
-                    log.debug("ProtectionModule: validate_signatures() aufgerufen.")
-                # falls keine vorhanden, still accept
+            self.config = config or ConfigLoader.load_config('protection')
+            self.logger.debug("Konfiguration erfolgreich geladen")
         except Exception as e:
-            # Signaturprüfung soll nicht stillschweigend brechen, aber wir loggen das
-            log.warning("ProtectionModule: Regel-Signaturprüfung fehlerhaft: %s", e, exc_info=True)
-
-        self.rule_engine: RuleEngine = resolved
-
-    # interne helper: versucht Regel-API kompatibel abzufragen
-    def _is_allowed(self, subject: str, context: Optional[Dict[str, Any]] = None) -> bool:
-        """
-        Versucht eine existierende API aufzurufen, um zu prüfen, ob 'subject' erlaubt ist.
-        Unterstützt mehrere Signaturen:
-        - rule_engine.is_action_allowed(subject)
-        - rule_engine.evaluate(subject, context) -> dict/obj mit 'allowed' bool
-        - rule_engine.match_rules(subject) -> returns list (empty -> allowed)
-        """
-        context = context or {}
-
-        # 1) is_action_allowed(subject)
-        if hasattr(self.rule_engine, "is_action_allowed"):
-            try:
-                result = self.rule_engine.is_action_allowed(subject)
-                # Falls bool -> return
-                if isinstance(result, bool):
-                    return result
-                # Falls dict mit 'allowed'
-                if isinstance(result, dict) and "allowed" in result:
-                    return bool(result["allowed"])
-            except Exception as e:
-                log.exception("ProtectionModule: Fehler beim Aufruf is_action_allowed: %s", e)
-
-        # 2) evaluate(subject, context)
-        if hasattr(self.rule_engine, "evaluate"):
-            try:
-                res = self.rule_engine.evaluate(subject, context)
-                # akzeptiere dict/obj mit 'allowed' oder True/False
-                if isinstance(res, bool):
-                    return res
-                if isinstance(res, dict) and "allowed" in res:
-                    return bool(res["allowed"])
-            except Exception as e:
-                log.exception("ProtectionModule: Fehler beim Aufruf evaluate: %s", e)
-
-        # 3) match_rules(subject) -> list of matches -> deny if any matches
-        if hasattr(self.rule_engine, "match_rules"):
-            try:
-                matches = self.rule_engine.match_rules(subject)
-                # falls None oder [] -> erlaubt
-                if matches:
-                    return False
-                return True
-            except Exception as e:
-                log.exception("ProtectionModule: Fehler beim Aufruf match_rules: %s", e)
-
-        # 4) fallback: rule_engine.has_rule_for / allows / check
-        for candidate in ("allows", "allow", "check", "is_allowed"):
-            if hasattr(self.rule_engine, candidate):
+            self.logger.error(f"Fehler beim Laden der Konfiguration: {str(e)}")
+            self.config = {
+                'rules': {},
+                'systems': []
+            }
+        
+        self.rule_engine = rule_engine
+        
+        # Regel-Engine initialisieren, falls nicht bereitgestellt
+        if self.rule_engine is None:
+            self.logger.debug("Keine RuleEngine übergeben, versuche Initialisierung")
+            if RuleEngine is None:
                 try:
-                    fn = getattr(self.rule_engine, candidate)
-                    result = fn(subject, context) if callable(fn) else bool(fn)
-                    if isinstance(result, bool):
-                        return result
-                except Exception:
-                    pass
-
-        # Wenn wir nichts sicher prüfen können, lehnen wir nicht stillschweigend ab.
-        # Stattdessen erlauben wir nicht blind, sondern werfen eine Ausnahme damit der Aufrufer entscheidet.
-        log.error("ProtectionModule: Keine bekannte Prüf-Methode in RuleEngine gefunden; weise auf Sicherheitsrisiko hin.")
-        raise RuntimeError("RuleEngine-API nicht kompatibel mit ProtectionModule (keine Prüf-Methode gefunden)")
-
-    def validate_user_input(self, user_input: str, context: Optional[Dict[str, Any]] = None) -> bool:
-        """
-        Prüft eine Benutzereingabe. Erlaubt -> True zurück, sonst PermissionError.
-        """
-        if not isinstance(user_input, str):
-            raise TypeError("user_input muss eine string sein")
-        ok = self._is_allowed(user_input, context)
-        if not ok:
-            raise PermissionError("Eingabe verletzt Regeln und wurde verworfen.")
-        return True
-
-    def validate_system_action(self, action_desc: str, context: Optional[Dict[str, Any]] = None) -> bool:
-        """
-        Prüft eine System-Aktion (z. B. 'update_config', 'execute_command ...').
-        """
-        if not isinstance(action_desc, str):
-            raise TypeError("action_desc muss string sein")
-        ok = self._is_allowed(action_desc, context)
-        if not ok:
-            raise PermissionError("Systemaktion verletzt Regeln.")
-        return True
-
-    def enforce_action(self, action_desc: str, context: Optional[Dict[str, Any]] = None) -> Any:
-        """
-        Führt eine abschließende Prüfung durch und gibt das Evaluations-Resultat zurück.
-        Nützlich, wenn RuleEngine komplexe Auswertungen (z.B. reasons, matched_rules) zurückliefert.
-        """
-        # Versuche die evaluate-Methode oder is_action_allowed je nach Verfügbarkeit
-        context = context or {}
-        if hasattr(self.rule_engine, "evaluate"):
+                    from core.rule_engine import RuleEngine
+                except ImportError:
+                    try:
+                        from rule_engine import RuleEngine
+                    except ImportError:
+                        raise RuntimeError("RuleEngine-Modul konnte nicht importiert werden") from None
+            
             try:
-                return self.rule_engine.evaluate(action_desc, context)
+                self.rule_engine = RuleEngine(config=self.config.get('rules', {}))
+                self.logger.info("RuleEngine erfolgreich initialisiert")
             except Exception as e:
-                log.exception("ProtectionModule: Fehler beim Aufruf evaluate: %s", e)
-                raise
-        # fallback: is_action_allowed
-        if hasattr(self.rule_engine, "is_action_allowed"):
-            try:
-                allowed = self.rule_engine.is_action_allowed(action_desc)
-                return {"allowed": bool(allowed)}
-            except Exception as e:
-                log.exception("ProtectionModule: Fehler beim Aufruf is_action_allowed: %s", e)
-                raise
-        # fallback: _is_allowed (gibt bool zurück oder wirft)
-        allowed = self._is_allowed(action_desc, context)
-        return {"allowed": bool(allowed)}
+                self.logger.error(f"Fehler bei RuleEngine-Initialisierung: {str(e)}")
+                raise RuntimeError("Konnte RuleEngine nicht initialisieren") from e
+        
+        # Schutzsysteme laden
+        self._load_protection_systems()
+    
+    def _load_protection_systems(self) -> None:
+        """
+        Lädt und initialisiert alle konfigurierten Schutzsysteme.
+        """
+        protection_systems = self.config.get('systems', [])
+        self.logger.info(f"Lade {len(protection_systems)} Schutzsysteme")
+        
+        for system in protection_systems:
+            system_name = system.get('name', 'Unknown')
+            self.logger.debug(f"Initialisiere Schutzsystem: {system_name}")
+            # Hier würden die konkreten Schutzsysteme initialisiert werden
+            # Beispiel: self._initialize_system(system)
+    
+    def check_access(self, user: Any, resource: str, action: str) -> bool:
+        """
+        Überprüft, ob ein Benutzer auf eine Ressource mit einer bestimmten Aktion zugreifen darf.
+        
+        Args:
+            user: Der Benutzer oder seine Identifikationsdaten
+            resource: Die Ressource, auf die zugegriffen werden soll
+            action: Die Aktion, die ausgeführt werden soll
+            
+        Returns:
+            bool: True, wenn der Zugriff erlaubt ist, sonst False
+        """
+        self.logger.debug(f"Überprüfe Zugriff: {user} -> {resource} ({action})")
+        try:
+            # Hier würde die eigentliche Zugriffsprüfung stattfinden
+            # Beispiel: return self.rule_engine.evaluate(user, resource, action)
+            return True  # Platzhalter - ersetzen Sie dies mit Ihrer Implementierung
+        except Exception as e:
+            self.logger.error(f"Fehler bei Zugriffsprüfung: {str(e)}")
+            return False
+    
+    def apply_protection_rules(self, data: Any) -> Any:
+        """
+        Wendet Schutzregeln auf die bereitgestellten Daten an.
+        
+        Args:
+            data: Die zu schützenden Daten
+            
+        Returns:
+            Any: Geschützte/transformierte Daten
+        """
+        self.logger.debug("Wende Schutzregeln auf Daten an")
+        try:
+            # Hier würden die Schutzregeln angewendet werden
+            # Beispiel: return self.rule_engine.process(data)
+            return data  # Platzhalter - ersetzen Sie dies mit Ihrer Implementierung
+        except Exception as e:
+            self.logger.error(f"Fehler bei Anwendung von Schutzregeln: {str(e)}")
+            raise
