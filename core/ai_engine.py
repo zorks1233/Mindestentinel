@@ -33,6 +33,10 @@ class AIBrain:
     """
 
     def __init__(self, rules_path: str, max_workers: int = 4):
+
+        # Ensure rules_path has a sensible default
+        if rules_path is None:
+            rules_path = 'data/rules'
         # Kernkomponenten
         self.rule_engine = RuleEngine(rules_path)
         self.protection = ProtectionModule(self.rule_engine)

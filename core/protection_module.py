@@ -11,7 +11,31 @@ from typing import Any
 from src.core.rule_engine import RuleEngine
 
 class ProtectionModule:
-    def __init__(self, rule_engine: RuleEngine):
+    def __init__(self, rule_engine: RuleEngine = None):
+    # Flexible initialization: accept a RuleEngine instance, a path, a class, or None.
+    # If None, attempt to create a default RuleEngine.
+    if rule_engine is None:
+        try:
+            rule_engine = RuleEngine()
+        except Exception:
+            rule_engine = None
+    else:
+        # If a string path is provided, try to instantiate RuleEngine with it
+        if isinstance(rule_engine, str):
+            try:
+                rule_engine = RuleEngine(rules_path=rule_engine)
+            except Exception:
+                pass
+        # If a class is provided, try to instantiate it
+        elif isinstance(rule_engine, type):
+            try:
+                rule_engine = rule_engine()
+            except Exception:
+                pass
+    if not isinstance(rule_engine, RuleEngine):
+        raise TypeError("rule_engine muss RuleEngine-Instanz sein")
+    self.rule_engine = rule_engine
+
         if not isinstance(rule_engine, RuleEngine):
             raise TypeError("rule_engine muss RuleEngine-Instanz sein")
         self.rule_engine = rule_engine
