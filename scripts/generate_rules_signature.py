@@ -1,46 +1,120 @@
-# generate_rules_signature.py
+"""
+generate_rules_signature.py
+Generiert eine kryptografische Signatur für die Regeldatei.
+Stellt sicher, dass die Regeln nicht manipuliert wurden.
+"""
+
 import os
-import hmac
 import hashlib
-import secrets
+import hmac
+import logging
+from pathlib import Path
 
-# Pfade zu den Regel-Dateien
-rules_path = "../config/rules.yaml"
-key_path = "../config/rules_key.key"
-sig_path = "../config/rules.sig"
+# Konfiguration
+KEY_FILE = "config/rules_key.key"
+RULES_FILE = "config/rules.yaml"
+SIGNATURE_FILE = "config/rules.sig"
 
-# Stelle sicher, dass das config-Verzeichnis existiert
-os.makedirs("../config", exist_ok=True)
+# Logging konfigurieren
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+logger = logging.getLogger("generate_rules_signature")
 
-# 1. Generiere einen sicheren Schlüssel, falls nicht vorhanden
-if not os.path.exists(key_path):
-    key = secrets.token_bytes(32)  # 256-bit Schlüssel
+def ensure_directory_exists(path: str) -> None:
+    """Stellt sicher, dass das Verzeichnis existiert"""
+    directory = os.path.dirname(path)
+    if directory and not os.path.exists(directory):
+        os.makedirs(directory)
+        logger.info(f"Verzeichnis erstellt: {directory}")
+
+def generate_key() -> bytes:
+    """Generiert einen sicheren kryptografischen Schlüssel"""
+    return os.urandom(32)
+
+def save_key(key: bytes, key_path: str) -> None:
+    """Speichert den Schlüssel in einer Datei"""
+    ensure_directory_exists(key_path)
     with open(key_path, 'wb') as f:
         f.write(key)
-    print(f"✅ Sicherer Schlüssel wurde erstellt: {key_path}")
-else:
-    print(f"ℹ️  Sicherer Schlüssel existiert bereits: {key_path}")
+    logger.info(f"Sicherer Schlüssel gespeichert: {key_path}")
 
-# 2. Generiere die Signatur für die Regeldatei
-if not os.path.exists(rules_path):
-    print(f"❌ Regeldatei nicht gefunden: {rules_path}")
-    print("Bitte erstellen Sie eine Regeldatei unter config/rules.yaml")
-else:
-    # Lade den Schlüssel
+def load_key(key_path: str) -> bytes:
+    """Lädt den Schlüssel aus einer Datei"""
     with open(key_path, 'rb') as f:
-        key = f.read()
-    
-    # Berechne die Signatur
+        return f.read()
+
+def generate_signature(rules_path: str, key: bytes) -> str:
+    """Generiert eine Signatur für die Regeldatei"""
     with open(rules_path, 'rb') as f:
-        data = f.read()
-        signature = hmac.new(key, data, hashlib.sha256).hexdigest()
-    
-    # Speichere die Signatur
+        rules_data = f.read()
+    return hmac.new(key, rules_data, hashlib.sha256).hexdigest()
+
+def save_signature(signature: str, sig_path: str) -> None:
+    """Speichert die Signatur in einer Datei"""
+    ensure_directory_exists(sig_path)
     with open(sig_path, 'w') as f:
         f.write(signature)
-    
-    print(f"✅ Signatur für Regeldatei wurde erstellt: {sig_path}")
-    print(f"   Signatur: {signature}")
+    logger.info(f"Signatur gespeichert: {sig_path}")
 
-print("\n✅ Regel-Signatur-Setup abgeschlossen!")
-print("Ihr System sollte jetzt ohne Signatur-Fehler starten.")
+def find_project_root() -> str:
+    """Findet das Projekt-Root-Verzeichnis"""
+    current_dir = os.getcwd()
+    
+    # Prüfe, ob wir uns bereits im Projekt-Root befinden
+    if os.path.exists(os.path.join(current_dir, "config", "rules.yaml")):
+        return current_dir
+    
+    # Prüfe das übergeordnete Verzeichnis
+    parent_dir = os.path.dirname(current_dir)
+    if os.path.exists(os.path.join(parent_dir, "config", "rules.yaml")):
+        return parent_dir
+    
+    # Prüfe das src-Verzeichnis
+    if os.path.exists(os.path.join(current_dir, "src", "config", "rules.yaml")):
+        return current_dir
+    
+    # Fallback: Verwende das aktuelle Verzeichnis
+    return current_dir
+
+def main():
+    """Hauptfunktion des Skripts"""
+    logger.info("Starte Regel-Signatur-Generierung...")
+    
+    # Finde das Projekt-Root
+    project_root = find_project_root()
+    logger.debug(f"Gefundenes Projekt-Root: {project_root}")
+    
+    # Pfade anpassen
+    key_path = os.path.join(project_root, KEY_FILE)
+    rules_path = os.path.join(project_root, RULES_FILE)
+    sig_path = os.path.join(project_root, SIGNATURE_FILE)
+    
+    logger.debug(f"Verwende Regelpfad: {rules_path}")
+    
+    # Prüfe, ob Regeldatei existiert
+    if not os.path.exists(rules_path):
+        logger.error(f"❌ Regeldatei nicht gefunden: {rules_path}")
+        logger.info("Bitte erstellen Sie eine Regeldatei unter config/rules.yaml")
+        return
+    
+    # Erstelle Schlüssel, falls nicht vorhanden
+    if not os.path.exists(key_path):
+        logger.info(f"ℹ️  Generiere neuen Sicherheitsschlüssel: {key_path}")
+        key = generate_key()
+        save_key(key, key_path)
+    else:
+        logger.info(f"ℹ️  Sicherer Schlüssel existiert bereits: {key_path}")
+        key = load_key(key_path)
+    
+    # Generiere und speichere Signatur
+    signature = generate_signature(rules_path, key)
+    save_signature(signature, sig_path)
+    
+    logger.info("✅ Regel-Signatur-Setup abgeschlossen!")
+    logger.info("Ihr System sollte jetzt ohne Signatur-Fehler starten.")
+
+if __name__ == "__main__":
+    main()
