@@ -239,12 +239,12 @@ def build_components(enable_autonomy: bool = False):
     logger.info("Initialisiere AIBrain...")
     try:
         from core.ai_engine import AIBrain
-        brain = AIBrain()
+        brain = AIBrain(rules_path=rules_path)
     except ImportError:
         try:
             sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "core"))
             from ai_engine import AIBrain
-            brain = AIBrain()
+            brain = AIBrain(rules_path=rules_path)
         except Exception as e:
             logger.error(f"Konnte AIBrain nicht importieren: {str(e)}")
             raise
@@ -675,12 +675,6 @@ def build_components(enable_autonomy: bool = False):
 
     # WICHTIG: Füge rule_engine zur Rückgabewert-Liste hinzu
     return brain, model_manager, plugin_manager, autonomous_loop, user_manager, auth_manager, rule_engine
-
-import multiprocessing
-try:
-    multiprocessing.freeze_support()
-except Exception:
-    pass
 
 
 def main():
