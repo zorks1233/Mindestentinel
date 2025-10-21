@@ -19,6 +19,13 @@ project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
+# Importiere den Multiprocessing-Patch
+try:
+    import patch_multiprocessing
+    print("Multiprocessing-Patch erfolgreich geladen")
+except ImportError as e:
+    print(f"Fehler beim Laden des Multiprocessing-Patches: {str(e)}")
+
 # Setze PYTHONPATH, falls nicht gesetzt
 if not os.environ.get('PYTHONPATH'):
     os.environ['PYTHONPATH'] = f"{project_root};{project_root}/src"
