@@ -12,39 +12,7 @@ import json
 import time
 import threading
 from typing import Dict, Any, Optional, List
-try:
-
-    from transformers import AutoModelForCausalLM, AutoTokenizer
-except Exception:
-    from src.core._stubs import AutoModelForCausalLM, AutoTokenizer
-
-# --- helper inserted by patch: safe from_pretrained wrapper ---
-def _safe_from_pretrained(cls, *args, **kwargs):
-    """Call cls.from_pretrained(*args, **kwargs) safely.
-    Returns the loaded object or None on failure (logs a warning using LOG if available).
-    """
-    if cls is None:
-        try:
-            LOG.warning("Requested class for from_pretrained is None; skipping load.")
-        except Exception:
-            pass
-        return None
-    try:
-        if hasattr(cls, "from_pretrained") and callable(getattr(cls, "from_pretrained")):
-            return cls.from_pretrained(*args, **kwargs)
-        # if cls itself is callable and behaves like a loader, try calling it
-        if callable(cls):
-            return cls(*args, **kwargs)
-    except Exception as e:
-        try:
-            LOG.warning("Failed to load via from_pretrained/callable: %s", e)
-        except Exception:
-            pass
-    return None
-
-# --- end helper ---
-
-
+from transformers import AutoModelForCausalLM, AutoTokenizer
 
 logger = logging.getLogger("mindestentinel.model_manager")
 
@@ -129,36 +97,16 @@ class ModelManager:
                 try:
                     # Versuche, das Modell zu laden
                     model_path = os.path.join(self.models_dir, model_name)
-                    model = None
-                    _model_cls = globals().get('AutoModelForCausalLM') or getattr(globals().get('transformers', None) or __import__('types').SimpleNamespace(), 'AutoModelForCausalLM', None)
-                    if callable(_model_cls):
-                        try:
-                            model = _model_cls.from_pretrained(model_path)
-                        except Exception as e:
-                            LOG.warning("Failed to load model for %s: %s", model_path, e)
-                            model = None
-                    else:
-                        LOG.warning("AutoModelForCausalLM not available; skipping model load for %s", model_path)
-                        model = None
-
-                    tokenizer = None
-                    _tokenizer_cls = globals().get('AutoTokenizer') or getattr(globals().get('transformers', None) or __import__('types').SimpleNamespace(), 'AutoTokenizer', None)
-                    if callable(_tokenizer_cls):
-                        try:
-                            tokenizer = _tokenizer_cls.from_pretrained(model_path)
-                        except Exception as e:
-                            LOG.warning("Failed to load tokenizer for %s: %s", model_path, e)
-                            tokenizer = None
-                    else:
-                        LOG.warning("AutoTokenizer not available; skipping tokenizer load for %s", model_path)
-                        tokenizer = None
-
+                    model = AutoModelForCausalLM.from_pretrained(model_path)
+                    tokenizer = AutoTokenizer.from_pretrained(model_path)
+                    
                     # Speichere das Modell
                     self.models[model_name] = {
                         "model": model,
                         "tokenizer": tokenizer
                     }
-
+                    
+                    # Lade Metadaten, falls vorhanden
                     metadata_path = os.path.join(model_path, "metadata.json")
                     if os.path.exists(metadata_path):
                         with open(metadata_path, 'r') as f:

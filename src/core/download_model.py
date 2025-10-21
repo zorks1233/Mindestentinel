@@ -9,15 +9,7 @@ import os
 import sys
 import logging
 import argparse
-try:
-
-    from transformers import AutoModelForCausalLM, AutoTokenizer
-except Exception:
-    from src.core._stubs import AutoModelForCausalLM, AutoTokenizer
-
-except Exception:
-    AutoModelForCausalLM = None
-AutoTokenizer = None
+from transformers import AutoModelForCausalLM, AutoTokenizer
 
 # Setze Logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")

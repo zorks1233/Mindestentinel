@@ -7,12 +7,7 @@ Diese Datei implementiert die Regel-Engine des Systems.
 
 import os
 import logging
-try:
-    import yaml
-except Exception:
-    import src.core._stubs as _stubs
-    yaml = _stubs.yaml
-
+import yaml
 import hmac
 import hashlib
 from typing import List, Dict, Any, Optional

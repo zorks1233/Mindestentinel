@@ -9,23 +9,9 @@ import logging
 import os
 import time
 import datetime
-try:
-    import torch
-except Exception:
-    import src.core._stubs as _stubs
-    torch = _stubs.torch
+import torch
 from typing import Dict, Any, Optional, List, Tuple
-try:
-
-    from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments, Trainer
-except Exception:
-    from src.core._stubs import AutoModelForCausalLM, AutoTokenizer, TrainingArguments, Trainer
-
-except Exception:
-    AutoModelForCausalLM = None
-AutoTokenizer = None
-TrainingArguments = None
-Trainer = None
+from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments, Trainer
 import json
 
 logger = logging.getLogger("mindestentinel.model_trainer")

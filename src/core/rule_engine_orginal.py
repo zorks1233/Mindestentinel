@@ -10,12 +10,7 @@ Design:
 """
 
 from __future__ import annotations
-try:
-    import yaml
-except Exception:
-    import src.core._stubs as _stubs
-    yaml = _stubs.yaml
-
+import yaml
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 import re
