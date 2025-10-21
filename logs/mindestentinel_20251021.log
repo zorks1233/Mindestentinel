@@ -1,0 +1,176 @@
+2025-10-21 08:45:06,203 [INFO] mindestentinel.config: Logging konfiguriert. Logs werden gespeichert in: logs
+2025-10-21 08:45:28,709 [INFO] mindestentinel.config: Logging konfiguriert. Logs werden gespeichert in: logs
+2025-10-21 08:45:28,757 [INFO] mindestentinel.main: Initialisiere ModelManager...
+2025-10-21 08:45:55,621 [INFO] mindestentinel.main: Initialisiere PluginManager...
+2025-10-21 08:45:55,651 [INFO] mindestentinel.main: PluginManager initialisiert.
+2025-10-21 08:46:11,897 [INFO] mindestentinel.main: Plugins geladen: (5)
+2025-10-21 08:46:11,897 [INFO] mindestentinel.main: Initialisiere RuleEngine...
+2025-10-21 08:46:11,912 [INFO] mindestentinel.main: RuleEngine initialisiert.
+2025-10-21 08:46:11,912 [WARNING] mindestentinel.main: Keine Regeln geladen
+2025-10-21 08:46:11,912 [INFO] mindestentinel.main: Initialisiere AIBrain...
+2025-10-21 08:46:11,912 [ERROR] mindestentinel.main: Kritischer Fehler im Hauptprogramm: AIBrain.__init__() missing 1 required positional argument: 'rules_path'
+Traceback (most recent call last):
+  File "C:\Users\bkrie\Desktop\Mindestentinel\Mindestentinel - Alpha-Projekt build0015.6A\src\main.py", line 718, in main
+    brain, model_manager, plugin_manager, autonomous_loop, user_manager, auth_manager, rule_engine = build_components(
+                                                                                                     ~~~~~~~~~~~~~~~~^
+        enable_autonomy=args.enable_autonomy)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\bkrie\Desktop\Mindestentinel\Mindestentinel - Alpha-Projekt build0015.6A\src\main.py", line 242, in build_components
+    brain = AIBrain()
+TypeError: AIBrain.__init__() missing 1 required positional argument: 'rules_path'
+2025-10-21 08:46:11,913 [INFO] mindestentinel.main: System shutdown complete.
+2025-10-21 09:02:15,500 [INFO] mindestentinel.config: Logging konfiguriert. Logs werden gespeichert in: logs
+2025-10-21 09:02:15,572 [INFO] mindestentinel.main: Initialisiere ModelManager...
+2025-10-21 09:02:22,640 [INFO] mindestentinel.main: System shutdown complete.
+2025-10-21 09:05:44,718 [INFO] mindestentinel.config: Logging konfiguriert. Logs werden gespeichert in: logs
+2025-10-21 09:05:44,773 [INFO] mindestentinel.main: Initialisiere ModelManager...
+2025-10-21 09:05:57,000 [INFO] mindestentinel.main: Initialisiere PluginManager...
+2025-10-21 09:05:57,027 [INFO] mindestentinel.main: PluginManager initialisiert.
+2025-10-21 09:06:04,263 [INFO] mindestentinel.main: Plugins geladen: (5)
+2025-10-21 09:06:04,263 [INFO] mindestentinel.main: Initialisiere RuleEngine...
+2025-10-21 09:06:04,278 [INFO] mindestentinel.main: RuleEngine initialisiert.
+2025-10-21 09:06:04,278 [WARNING] mindestentinel.main: Keine Regeln geladen
+2025-10-21 09:06:04,278 [INFO] mindestentinel.main: Initialisiere AIBrain...
+2025-10-21 09:06:04,278 [ERROR] mindestentinel.main: Kritischer Fehler im Hauptprogramm: AIBrain.__init__() missing 1 required positional argument: 'rules_path'
+Traceback (most recent call last):
+  File "C:\Users\bkrie\Desktop\Mindestentinel\Mindestentinel - Alpha-Projekt build0015.6A\src\main.py", line 718, in main
+    brain, model_manager, plugin_manager, autonomous_loop, user_manager, auth_manager, rule_engine = build_components(
+                                                                                                     ~~~~~~~~~~~~~~~~^
+        enable_autonomy=args.enable_autonomy)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\bkrie\Desktop\Mindestentinel\Mindestentinel - Alpha-Projekt build0015.6A\src\main.py", line 242, in build_components
+    brain = AIBrain()
+TypeError: AIBrain.__init__() missing 1 required positional argument: 'rules_path'
+2025-10-21 09:06:04,279 [INFO] mindestentinel.main: System shutdown complete.
+2025-10-21 09:17:10,086 [INFO] mindestentinel.config: Logging konfiguriert. Logs werden gespeichert in: logs
+2025-10-21 09:17:10,133 [INFO] mindestentinel.main: Initialisiere ModelManager...
+2025-10-21 09:17:12,503 [INFO] mindestentinel.main: Initialisiere PluginManager...
+2025-10-21 09:17:12,506 [INFO] mindestentinel.main: PluginManager initialisiert.
+2025-10-21 09:17:14,996 [INFO] mindestentinel.main: Plugins geladen: (5)
+2025-10-21 09:17:14,996 [INFO] mindestentinel.main: Initialisiere RuleEngine...
+2025-10-21 09:17:15,004 [INFO] mindestentinel.main: RuleEngine initialisiert.
+2025-10-21 09:17:15,004 [WARNING] mindestentinel.main: Keine Regeln geladen
+2025-10-21 09:17:15,004 [INFO] mindestentinel.main: Initialisiere AIBrain...
+2025-10-21 09:17:15,010 [INFO] mindestentinel.rule_engine: Regeln geladen: (5)
+2025-10-21 09:17:15,026 [INFO] mindestentinel.rule_engine: Regel-Signatur erfolgreich verifiziert
+2025-10-21 09:17:15,026 [INFO] mindestentinel.rule_engine: Starte Regeldatei-Überwachung (Intervall: 30 Sekunden)...
+2025-10-21 09:17:15,026 [INFO] mindestentinel.rule_engine: RuleEngine initialisiert mit 5 Regeln.
+2025-10-21 09:17:15,027 [WARNING] mindestentinel.protection_module: rule_engine ist keine RuleEngine-Instanz
+2025-10-21 09:17:15,027 [INFO] mindestentinel.protection_module: ProtectionModule initialisiert
+2025-10-21 09:17:15,036 [INFO] mindestentinel.knowledge_base: Datenbankstruktur initialisiert.
+2025-10-21 09:17:15,036 [INFO] mindestentinel.knowledge_base: Wissensdatenbank initialisiert: data/knowledge/knowledge.db
+2025-10-21 09:17:15,036 [INFO] mindestentinel.self_learning: SelfLearning-Modul initialisiert.
+2025-10-21 09:17:15,036 [INFO] mindestentinel.multi_model_orchestrator: MultiModelOrchestrator initialisiert.
+2025-10-21 09:17:15,037 [INFO] mindestentinel.system_monitor: SystemMonitor initialisiert.
+2025-10-21 09:17:15,037 [INFO] mindestentinel.ai_engine: AIBrain initialisiert.
+2025-10-21 09:17:15,037 [INFO] mindestentinel.ai_engine: Model manager injiziert in MultiModelOrchestrator.
+2025-10-21 09:17:15,037 [INFO] mindestentinel.main: ModelManager injiziert.
+2025-10-21 09:17:15,037 [INFO] mindestentinel.main: Initialisiere Wissensdatenbank...
+2025-10-21 09:17:15,039 [INFO] mindestentinel.main: Wissensdatenbank initialisiert.
+2025-10-21 09:17:15,039 [INFO] mindestentinel.main: MultiModelOrchestrator initialisiert.
+2025-10-21 09:17:15,039 [INFO] mindestentinel.main: RuleEngine injiziert.
+2025-10-21 09:17:15,039 [INFO] mindestentinel.main: Initialisiere ProtectionModule...
+2025-10-21 09:17:15,039 [ERROR] mindestentinel.main: ProtectionModule TypeError (Positional): rule_engine muss RuleEngine-Instanz sein
+2025-10-21 09:17:15,040 [ERROR] mindestentinel.main: ProtectionModule TypeError (Keyword): rule_engine muss RuleEngine-Instanz sein
+2025-10-21 09:17:15,040 [ERROR] mindestentinel.main: Konnte ProtectionModule nicht initialisieren: ProtectionModule.__init__() missing 1 required positional argument: 'rule_engine'
+2025-10-21 09:17:15,040 [ERROR] mindestentinel.main: Kritischer Fehler im Hauptprogramm: ProtectionModule.__init__() missing 1 required positional argument: 'rule_engine'
+Traceback (most recent call last):
+  File "C:\Users\bkrie\Desktop\Mindestentinel\Mindestentinel - Alpha-Projekt build0015.6A\src\main.py", line 323, in build_components
+    protection_module = ProtectionModule(rule_engine)
+  File "C:\Users\bkrie\Desktop\Mindestentinel\Mindestentinel - Alpha-Projekt build0015.6A\core\protection_module.py", line 16, in __init__
+    raise TypeError("rule_engine muss RuleEngine-Instanz sein")
+TypeError: rule_engine muss RuleEngine-Instanz sein
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\bkrie\Desktop\Mindestentinel\Mindestentinel - Alpha-Projekt build0015.6A\src\main.py", line 329, in build_components
+    protection_module = ProtectionModule(rule_engine=rule_engine)
+  File "C:\Users\bkrie\Desktop\Mindestentinel\Mindestentinel - Alpha-Projekt build0015.6A\core\protection_module.py", line 16, in __init__
+    raise TypeError("rule_engine muss RuleEngine-Instanz sein")
+TypeError: rule_engine muss RuleEngine-Instanz sein
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\bkrie\Desktop\Mindestentinel\Mindestentinel - Alpha-Projekt build0015.6A\src\main.py", line 718, in main
+    brain, model_manager, plugin_manager, autonomous_loop, user_manager, auth_manager, rule_engine = build_components(
+                                                                                                     ~~~~~~~~~~~~~~~~^
+        enable_autonomy=args.enable_autonomy)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\bkrie\Desktop\Mindestentinel\Mindestentinel - Alpha-Projekt build0015.6A\src\main.py", line 335, in build_components
+    protection_module = ProtectionModule()
+TypeError: ProtectionModule.__init__() missing 1 required positional argument: 'rule_engine'
+2025-10-21 09:17:15,043 [INFO] mindestentinel.main: System shutdown complete.
+2025-10-21 09:22:45,448 [INFO] mindestentinel.config: Logging konfiguriert. Logs werden gespeichert in: logs
+2025-10-21 09:22:45,498 [INFO] mindestentinel.main: Initialisiere ModelManager...
+2025-10-21 09:22:45,613 [ERROR] mindestentinel.main: Kritischer Fehler im Hauptprogramm: expected an indented block after function definition on line 14 (protection_module.py, line 17)
+Traceback (most recent call last):
+  File "C:\Users\bkrie\Desktop\Mindestentinel\Mindestentinel - Alpha-Projekt build0015.6A\src\main.py", line 718, in main
+    brain, model_manager, plugin_manager, autonomous_loop, user_manager, auth_manager, rule_engine = build_components(
+                                                                                                     ~~~~~~~~~~~~~~~~^
+        enable_autonomy=args.enable_autonomy)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\bkrie\Desktop\Mindestentinel\Mindestentinel - Alpha-Projekt build0015.6A\src\main.py", line 99, in build_components
+    from core.model_manager import ModelManager
+  File "C:\Users\bkrie\Desktop\Mindestentinel\Mindestentinel - Alpha-Projekt build0015.6A\core\__init__.py", line 11, in <module>
+    from .protection_module import ProtectionModule
+  File "C:\Users\bkrie\Desktop\Mindestentinel\Mindestentinel - Alpha-Projekt build0015.6A\core\protection_module.py", line 17
+    if rule_engine is None:
+    ^^
+IndentationError: expected an indented block after function definition on line 14
+2025-10-21 09:22:45,622 [INFO] mindestentinel.main: System shutdown complete.
+2025-10-21 09:28:25,287 [INFO] mindestentinel.config: Logging konfiguriert. Logs werden gespeichert in: logs
+2025-10-21 09:28:25,335 [INFO] mindestentinel.main: Initialisiere ModelManager...
+2025-10-21 09:28:25,442 [ERROR] mindestentinel.main: Kritischer Fehler im Hauptprogramm: expected an indented block after function definition on line 14 (protection_module.py, line 17)
+Traceback (most recent call last):
+  File "C:\Users\bkrie\Desktop\Mindestentinel\Mindestentinel - Alpha-Projekt build0015.6A\src\main.py", line 718, in main
+    brain, model_manager, plugin_manager, autonomous_loop, user_manager, auth_manager, rule_engine = build_components(
+                                                                                                     ~~~~~~~~~~~~~~~~^
+        enable_autonomy=args.enable_autonomy)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\bkrie\Desktop\Mindestentinel\Mindestentinel - Alpha-Projekt build0015.6A\src\main.py", line 99, in build_components
+    from core.model_manager import ModelManager
+  File "C:\Users\bkrie\Desktop\Mindestentinel\Mindestentinel - Alpha-Projekt build0015.6A\core\__init__.py", line 11, in <module>
+    from .protection_module import ProtectionModule
+  File "C:\Users\bkrie\Desktop\Mindestentinel\Mindestentinel - Alpha-Projekt build0015.6A\core\protection_module.py", line 17
+    if rule_engine is None:
+    ^^
+IndentationError: expected an indented block after function definition on line 14
+2025-10-21 09:28:25,444 [INFO] mindestentinel.main: System shutdown complete.
+2025-10-21 09:38:18,983 [INFO] mindestentinel.config: Logging konfiguriert. Logs werden gespeichert in: logs
+2025-10-21 09:38:19,034 [INFO] mindestentinel.main: Initialisiere ModelManager...
+2025-10-21 09:38:19,148 [ERROR] mindestentinel.main: Kritischer Fehler im Hauptprogramm: expected an indented block after function definition on line 14 (protection_module.py, line 17)
+Traceback (most recent call last):
+  File "C:\Users\bkrie\Desktop\Mindestentinel\Mindestentinel - Alpha-Projekt build0015.6A\src\main.py", line 718, in main
+    brain, model_manager, plugin_manager, autonomous_loop, user_manager, auth_manager, rule_engine = build_components(
+                                                                                                     ~~~~~~~~~~~~~~~~^
+        enable_autonomy=args.enable_autonomy)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\bkrie\Desktop\Mindestentinel\Mindestentinel - Alpha-Projekt build0015.6A\src\main.py", line 99, in build_components
+    from core.model_manager import ModelManager
+  File "C:\Users\bkrie\Desktop\Mindestentinel\Mindestentinel - Alpha-Projekt build0015.6A\core\__init__.py", line 11, in <module>
+    from .protection_module import ProtectionModule
+  File "C:\Users\bkrie\Desktop\Mindestentinel\Mindestentinel - Alpha-Projekt build0015.6A\core\protection_module.py", line 17
+    if rule_engine is None:
+    ^^
+IndentationError: expected an indented block after function definition on line 14
+2025-10-21 09:38:19,149 [INFO] mindestentinel.main: System shutdown complete.
+2025-10-21 09:38:24,027 [INFO] mindestentinel.config: Logging konfiguriert. Logs werden gespeichert in: logs
+2025-10-21 09:38:24,074 [INFO] mindestentinel.main: Initialisiere ModelManager...
+2025-10-21 09:38:24,178 [ERROR] mindestentinel.main: Kritischer Fehler im Hauptprogramm: expected an indented block after function definition on line 14 (protection_module.py, line 17)
+Traceback (most recent call last):
+  File "C:\Users\bkrie\Desktop\Mindestentinel\Mindestentinel - Alpha-Projekt build0015.6A\src\main.py", line 718, in main
+    brain, model_manager, plugin_manager, autonomous_loop, user_manager, auth_manager, rule_engine = build_components(
+                                                                                                     ~~~~~~~~~~~~~~~~^
+        enable_autonomy=args.enable_autonomy)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\bkrie\Desktop\Mindestentinel\Mindestentinel - Alpha-Projekt build0015.6A\src\main.py", line 99, in build_components
+    from core.model_manager import ModelManager
+  File "C:\Users\bkrie\Desktop\Mindestentinel\Mindestentinel - Alpha-Projekt build0015.6A\core\__init__.py", line 11, in <module>
+    from .protection_module import ProtectionModule
+  File "C:\Users\bkrie\Desktop\Mindestentinel\Mindestentinel - Alpha-Projekt build0015.6A\core\protection_module.py", line 17
+    if rule_engine is None:
+    ^^
+IndentationError: expected an indented block after function definition on line 14
+2025-10-21 09:38:24,180 [INFO] mindestentinel.main: System shutdown complete.
