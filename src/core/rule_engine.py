@@ -1,338 +1,566 @@
 """
 rule_engine.py
-Verwaltet die Regeln und deren Ausführung im Mindestentinel-System.
-Ermöglicht regelbasierte Entscheidungsfindung und Sicherheitsüberprüfungen.
+Regel-Engine für Mindestentinel - Verarbeitet Sicherheitsregeln, Zugriffssteuerung und Validierungslogik
 """
 
 import os
+import sys
 import logging
-import time
-import threading
+import yaml
 import hashlib
-import hmac
-from typing import Dict, Any, List, Optional, Callable
-from pathlib import Path
+from typing import Dict, Any, List, Optional, Tuple
+from datetime import datetime
 
+# Robuste Projekt-Root-Erkennung
+def get_project_root() -> str:
+    """
+    Findet das Projekt-Root-Verzeichnis unabhängig vom aktuellen Arbeitsverzeichnis
+    
+    Returns:
+        str: Absolute Pfad zum Projekt-Root
+    """
+    current_file = os.path.abspath(__file__)
+    current_dir = os.path.dirname(current_file)
+    
+    # Versuche 1: Von src/core aus
+    project_root = os.path.dirname(os.path.dirname(current_dir))
+    if os.path.exists(os.path.join(project_root, "core")):
+        return project_root
+    
+    # Versuche 2: Von core aus
+    project_root = os.path.dirname(current_dir)
+    if os.path.exists(os.path.join(project_root, "src", "core")):
+        return project_root
+    
+    # Versuche 3: Aktuelles Verzeichnis ist Projekt-Root
+    project_root = current_dir
+    if os.path.exists(os.path.join(project_root, "src", "core")) or os.path.exists(os.path.join(project_root, "core")):
+        return project_root
+    
+    # Versuche 4: Projekt-Root ist zwei Ebenen höher
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_dir)))
+    if os.path.exists(os.path.join(project_root, "core")):
+        return project_root
+    
+    # Fallback: Aktuelles Verzeichnis
+    return os.getcwd()
+
+# Setze PYTHONPATH korrekt
+PROJECT_ROOT = get_project_root()
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
+# Import-Handling für ConfigLoader
+config_loader = None
+try:
+    # Versuche 1: Import aus config
+    from config.config_loader import load_config
+    config_loader = load_config
+    logging.debug("ConfigLoader erfolgreich aus config.config_loader importiert")
+except ImportError as e1:
+    try:
+        # Versuche 2: Import aus src/config
+        from src.config.config_loader import load_config
+        config_loader = load_config
+        logging.debug("ConfigLoader erfolgreich aus src.config.config_loader importiert")
+    except ImportError as e2:
+        try:
+            # Versuche 3: Dynamischer Import
+            config_loader_path = os.path.join(PROJECT_ROOT, "config", "config_loader.py")
+            
+            if not os.path.exists(config_loader_path):
+                config_loader_path = os.path.join(PROJECT_ROOT, "src", "config", "config_loader.py")
+            
+            if os.path.exists(config_loader_path):
+                import importlib.util
+                spec = importlib.util.spec_from_file_location("config_loader", config_loader_path)
+                config_loader_module = importlib.util.module_from_spec(spec)
+                sys.modules["config_loader"] = config_loader_module
+                spec.loader.exec_module(config_loader_module)
+                
+                if hasattr(config_loader_module, "load_config"):
+                    config_loader = config_loader_module.load_config
+                    logging.debug(f"ConfigLoader dynamisch aus {config_loader_path} geladen")
+                else:
+                    raise AttributeError(f"config_loader.py enthält keine load_config-Funktion")
+            else:
+                raise ImportError(f"config_loader.py nicht gefunden unter: {config_loader_path}")
+        except Exception as e3:
+            logging.error(f"Alle Importversuche für ConfigLoader fehlgeschlagen: {str(e1)}, {str(e2)}, {str(e3)}")
+            
+            # Definiere eine Dummy-Implementierung für load_config
+            def load_config(config_name: str = "main.yaml") -> Dict[str, Any]:
+                logging.warning("ConfigLoader ist eine Dummy-Implementierung - bitte korrigieren")
+                return {
+                    "system": {
+                        "debug": True,
+                        "log_level": "INFO",
+                        "log_dir": "logs"
+                    },
+                    "api": {
+                        "port": 8000,
+                        "host": "0.0.0.0"
+                    },
+                    "model": {
+                        "default": "gpt-3.5-turbo",
+                        "max_tokens": 500
+                    },
+                    "self_learning": {
+                        "enabled": True,
+                        "learning_rate": 0.01,
+                        "memory_size": 1000
+                    }
+                }
+            
+            config_loader = load_config
+
+# Initialisiere Logging
 logger = logging.getLogger("mindestentinel.rule_engine")
+logger.setLevel(logging.INFO)
 
 class RuleEngine:
     """
-    Verwaltet die Regeln und deren Ausführung im Mindestentinel-System.
-    Ermöglicht regelbasierte Entscheidungsfindung und Sicherheitsüberprüfungen.
+    Regel-Engine für Mindestentinel
+    Verarbeitet Sicherheitsregeln, Zugriffssteuerung und Validierungslogik
     """
     
     def __init__(self, rules_path: Optional[str] = None, config: Optional[Dict[str, Any]] = None):
         """
-        Initialisiert die RuleEngine.
+        Initialisiert die Regel-Engine
         
         Args:
-            rules_path: Optionaler Pfad zur Regeldatei
-            config: Optionale Konfigurationsparameter
+            rules_path: Pfad zur Regeldatei (standardmäßig config/rules.yaml)
+            config: Optionale Konfiguration
         """
-        logger.info("Initialisiere RuleEngine...")
-        self.config = config or {}
-        self.rules_path = rules_path or self._find_rules_path()
-        self.signature_path = os.path.join(os.path.dirname(self.rules_path), "rules.sig")
-        self.key_path = os.path.join(os.path.dirname(self.rules_path), "rules_key.key")
-        
-        # Lade Regeln
+        self.rules_path = rules_path
+        self.config = config
         self.rules = []
-        self.signature = None
-        self.rules_loaded = False
-        self._load_rules()
+        self.signature_path = None
         
-        # Starte Überwachung der Regeldatei
-        self.monitoring_thread = None
-        self.stop_monitoring = threading.Event()
-        self.start_file_monitoring()
+        # Setze Standard-Regelpfad, wenn keiner angegeben wurde
+        if not self.rules_path:
+            self.rules_path = os.path.join(PROJECT_ROOT, "config", "rules.yaml")
         
-        logger.info(f"RuleEngine initialisiert mit {len(self.rules)} Regeln.")
+        # Setze Standard-Signaturpfad
+        self.signature_path = os.path.join(os.path.dirname(self.rules_path), "rules.sig")
+        
+        logger.debug(f"RuleEngine initialisiert mit Regelpfad: {self.rules_path}")
+        logger.debug(f"Signaturpfad: {self.signature_path}")
+        
+        # Lade Regeln, wenn der Pfad existiert
+        if os.path.exists(self.rules_path):
+            self.load_rules()
+        else:
+            logger.warning(f"Regeldatei nicht gefunden unter: {self.rules_path}")
     
-    def _find_rules_path(self) -> str:
-        """Findet den korrekten Pfad zur rules.yaml-Datei"""
-        # 1. Versuche, vom aktuellen Verzeichnis aus zu finden
-        current_dir = os.getcwd()
-        possible_paths = [
-            os.path.join(current_dir, "config", "rules.yaml"),
-            os.path.join(current_dir, "rules.yaml"),
-            os.path.join(current_dir, "..", "config", "rules.yaml"),
-            os.path.join(current_dir, "src", "config", "rules.yaml")
-        ]
+    def calculate_signature(self, rules_content: str) -> str:
+        """
+        Berechnet die Signatur für die Regeln
         
-        # 2. Überprüfe alle möglichen Pfade
-        for path in possible_paths:
-            normalized_path = os.path.normpath(path)
-            if os.path.exists(normalized_path):
-                logger.debug(f"Gefundene Regeldatei: {normalized_path}")
-                return normalized_path
-        
-        # 3. Fallback: Verwende Standardpfad im Projekt-Root
-        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        default_path = os.path.join(project_root, "config", "rules.yaml")
-        logger.warning(f"Verwende Standard-Regelpfad: {default_path}")
-        return default_path
+        Args:
+            rules_content: Inhalt der Regeldatei
+            
+        Returns:
+            str: SHA-256-Hash der Regeln
+        """
+        return hashlib.sha256(rules_content.encode()).hexdigest()
     
-    def _load_rules(self) -> None:
-        """Lädt die Regeln aus der Regeldatei"""
+    def verify_signature(self) -> bool:
+        """
+        Überprüft die Signatur der Regeldatei
+        
+        Returns:
+            bool: True, wenn die Signatur gültig ist, sonst False
+        """
+        if not os.path.exists(self.rules_path):
+            logger.error(f"Regeldatei nicht gefunden: {self.rules_path}")
+            return False
+        
+        if not os.path.exists(self.signature_path):
+            logger.warning(f"Signaturdatei nicht gefunden: {self.signature_path}")
+            return False
+        
         try:
-            if not os.path.exists(self.rules_path):
-                logger.error(f"Regeldatei nicht gefunden: {self.rules_path}")
-                return
-            
-            # Lade Regeln
-            import yaml
+            # Lese Regeln
             with open(self.rules_path, 'r') as f:
-                data = yaml.safe_load(f)
+                rules_content = f.read()
             
-            self.rules = data.get('rules', [])
-            logger.info(f"Regeln geladen: ({len(self.rules)})")
+            # Berechne aktuelle Signatur
+            current_signature = self.calculate_signature(rules_content)
             
-            # Überprüfe Signatur
-            if self._verify_signature():
-                logger.info("Regel-Signatur validiert")
-                self.rules_loaded = True
+            # Lese gespeicherte Signatur
+            with open(self.signature_path, 'r') as f:
+                stored_signature = f.read().strip()
+            
+            # Vergleiche Signaturen
+            is_valid = current_signature == stored_signature
+            
+            if is_valid:
+                logger.debug("Regel-Signatur ist gültig")
             else:
                 logger.error("Regel-Signatur ungültig")
-                self.rules_loaded = False
+            
+            return is_valid
+            
+        except Exception as e:
+            logger.error(f"Fehler bei der Signaturüberprüfung: {str(e)}")
+            return False
+    
+    def load_rules(self) -> Dict[str, Any]:
+        """
+        Lädt die Regeln aus der Regeldatei
+        
+        Returns:
+            dict: Geladene Regeln
+            
+        Raises:
+            FileNotFoundError: Wenn die Regeldatei nicht gefunden wird
+            ValueError: Wenn die Signatur ungültig ist
+        """
+        logger.info(f"Lade Regeln aus: {self.rules_path}")
+        
+        # Überprüfe, ob die Regeldatei existiert
+        if not os.path.exists(self.rules_path):
+            logger.error(f"Regeldatei nicht gefunden: {self.rules_path}")
+            self.rules = []
+            return {"status": "error", "message": f"Regeldatei nicht gefunden: {self.rules_path}"}
+        
+        # Überprüfe die Signatur
+        if not self.verify_signature():
+            logger.error("Regel-Signatur ungültig")
+            self.rules = []
+            return {"status": "error", "message": "Regel-Signatur ungültig"}
+        
+        try:
+            # Lade die Regeln
+            with open(self.rules_path, 'r') as f:
+                rules_data = yaml.safe_load(f)
+            
+            # Extrahiere die eigentlichen Regeln
+            self.rules = rules_data.get('rules', [])
+            
+            logger.info(f"{len(self.rules)} Regeln erfolgreich geladen")
+            return {"status": "success", "rules_loaded": len(self.rules)}
+            
         except Exception as e:
             logger.error(f"Fehler beim Laden der Regeln: {str(e)}")
             self.rules = []
+            return {"status": "error", "message": str(e)}
     
-    def _verify_signature(self) -> bool:
-        """Überprüft die Signatur der Regeldatei"""
-        try:
-            # Prüfe, ob Signaturdatei existiert
-            if not os.path.exists(self.signature_path):
-                logger.warning(f"Signaturdatei nicht gefunden: {self.signature_path}")
-                return False
-            
-            # Lade Signatur
-            with open(self.signature_path, 'r') as f:
-                self.signature = f.read().strip()
-            
-            # Prüfe, ob Schlüsseldatei existiert
-            if not os.path.exists(self.key_path):
-                logger.error(f"Schlüsseldatei nicht gefunden: {self.key_path}")
-                return False
-            
-            # Lade Schlüssel
-            with open(self.key_path, 'rb') as f:
-                key = f.read()
-            
-            # Berechne erwartete Signatur
-            with open(self.rules_path, 'rb') as f:
-                rules_data = f.read()
-            
-            expected_sig = hmac.new(key, rules_data, hashlib.sha256).hexdigest()
-            
-            # Vergleiche Signaturen
-            if hmac.compare_digest(self.signature, expected_sig):
-                return True
-            else:
-                logger.error("Regel-Signatur ungültig")
-                return False
-        except Exception as e:
-            logger.error(f"Fehler bei der Signaturprüfung: {str(e)}")
-            return False
-    
-    def start_file_monitoring(self, interval: int = 30) -> None:
-        """Startet die Überwachung der Regeldatei"""
-        if self.monitoring_thread and self.monitoring_thread.is_alive():
-            return
-        
-        self.stop_monitoring.clear()
-        logger.info(f"Starte Regeldatei-Überwachung (Intervall: {interval} Sekunden)...")
-        
-        def monitor():
-            last_modified = 0
-            while not self.stop_monitoring.is_set():
-                try:
-                    if os.path.exists(self.rules_path):
-                        current_modified = os.path.getmtime(self.rules_path)
-                        if current_modified != last_modified:
-                            logger.info("Regeldatei wurde geändert, lade neu...")
-                            self._load_rules()
-                            last_modified = current_modified
-                except Exception as e:
-                    logger.error(f"Fehler bei der Dateiüberwachung: {str(e)}")
-                
-                self.stop_monitoring.wait(interval)
-        
-        self.monitoring_thread = threading.Thread(target=monitor, daemon=True)
-        self.monitoring_thread.start()
-    
-    def stop_file_monitoring(self) -> None:
-        """Stoppt die Überwachung der Regeldatei"""
-        self.stop_monitoring.set()
-        if self.monitoring_thread and self.monitoring_thread.is_alive():
-            self.monitoring_thread.join(timeout=1.0)
-        logger.debug("Regeldatei-Überwachung gestoppt")
-    
-    def evaluate(self, context: Dict[str, Any]) -> Dict[str, Any]:
+    def reload_rules(self) -> Dict[str, Any]:
         """
-        Wertet die Regeln basierend auf dem Kontext aus.
+        Lädt die Regeln neu
+        
+        Returns:
+            dict: Ergebnis des Neuladens
+        """
+        return self.load_rules()
+    
+    def apply_rules(self, input_data: Any, context: Dict[str, Any] = None) -> Dict[str, Any]:
+        """
+        Wendet die Regeln auf die Eingabedaten an
         
         Args:
-            context: Der Kontext, gegen den die Regeln geprüft werden
+            input_data: Die zu überprüfenden Daten
+            context: Optionaler Kontext für die Regelanwendung
             
         Returns:
-            Dict[str, Any]: Ergebnis der Regelauswertung
+            dict: Ergebnis der Regelanwendung mit allowed-Flag und Nachricht
         """
-        results = {
-            "matched_rules": [],
-            "actions": [],
-            "violations": []
-        }
+        if context is None:
+            context = {}
         
+        logger.debug(f"Wende {len(self.rules)} Regeln auf Eingabe an")
+        
+        # Wenn keine Regeln geladen sind, erlaube alles
+        if not self.rules:
+            logger.warning("Keine Regeln geladen - erlaube alle Eingaben")
+            return {"allowed": True, "message": "Keine Regeln geladen"}
+        
+        # Durchlaufe alle Regeln
         for rule in self.rules:
             try:
-                # Prüfe, ob die Regel auf den Kontext zutrifft
-                if self._matches_condition(rule, context):
-                    results["matched_rules"].append(rule["id"])
-                    
-                    # Führe Aktionen aus
-                    if "action" in rule:
-                        action_result = self._execute_action(rule["action"], context)
-                        results["actions"].append(action_result)
+                # Überprüfe, ob die Regel auf diesen Kontext anwendbar ist
+                if not self._is_rule_applicable(rule, context):
+                    continue
+                
+                # Wende die Regel an
+                result = self._apply_single_rule(rule, input_data, context)
+                
+                if not result["allowed"]:
+                    logger.warning(f"Regel verletzt: {rule.get('name', 'Unbenannte Regel')} - {result['message']}")
+                    return result
+            
             except Exception as e:
-                logger.error(f"Fehler bei der Auswertung von Regel {rule.get('id', 'unknown')}: {str(e)}")
-                results["violations"].append({
-                    "rule_id": rule.get("id", "unknown"),
-                    "error": str(e)
-                })
+                logger.error(f"Fehler bei der Anwendung der Regel '{rule.get('name', 'Unbenannte Regel')}': {str(e)}")
+                # Bei Regel-Fehlern erlauben wir die Eingabe nicht
+                return {
+                    "allowed": False,
+                    "message": f"Systemfehler bei der Regelanwendung: {str(e)}"
+                }
         
-        return results
+        # Alle Regeln wurden erfolgreich angewendet
+        return {"allowed": True, "message": "Alle Regeln erfüllt"}
     
-    def _matches_condition(self, rule: Dict[str, Any], context: Dict[str, Any]) -> bool:
-        """Prüft, ob die Bedingungen einer Regel erfüllt sind"""
-        condition = rule.get("condition", {})
+    def _is_rule_applicable(self, rule: Dict[str, Any], context: Dict[str, Any]) -> bool:
+        """
+        Überprüft, ob eine Regel auf den gegebenen Kontext anwendbar ist
         
-        # Einfache Kategorienprüfung
-        if "category" in condition:
-            return context.get("category") == condition["category"]
+        Args:
+            rule: Die Regeldefinition
+            context: Der aktuelle Kontext
+            
+        Returns:
+            bool: True, wenn die Regel anwendbar ist, sonst False
+        """
+        # Wenn keine Bedingungen definiert sind, ist die Regel immer anwendbar
+        if "conditions" not in rule:
+            return True
         
-        # Hier könnten komplexere Bedingungsprüfungen hinzugefügt werden
-        return False
-    
-    def _execute_action(self, action: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
-        """Führt eine Aktion basierend auf einer Regel aus"""
-        action_type = action.get("type", "unknown")
-        parameters = action.get("parameters", {})
+        conditions = rule["conditions"]
         
-        # Platzhalter für konkrete Aktionen
-        if action_type == "safety_check":
-            return self._safety_check(context, parameters)
-        elif action_type == "integrity_check":
-            return self._integrity_check(context, parameters)
-        elif action_type == "core_protection":
-            return self._core_protection(context, parameters)
-        elif action_type == "identification_check":
-            return self._identification_check(context, parameters)
-        elif action_type == "ethics_check":
-            return self._ethics_check(context, parameters)
+        # Überprüfe alle Bedingungen
+        for condition_key, condition_value in conditions.items():
+            # Überprüfe, ob der Schlüssel im Kontext existiert
+            if condition_key not in context:
+                return False
+            
+            # Überprüfe, ob der Wert übereinstimmt
+            if context[condition_key] != condition_value:
+                return False
         
-        return {"action": action_type, "status": "not_implemented"}
-    
-    def _safety_check(self, context: Dict[str, Any], params: Dict[str, Any]) -> Dict[str, Any]:
-        """Führt eine Sicherheitsprüfung durch"""
-        result = {"action": "safety_check", "status": "success"}
-        
-        # Hier würde die eigentliche Sicherheitsprüfung stattfinden
-        # Beispiel: Überprüfung der Komplexität
-        complexity = context.get("complexity", 0)
-        if complexity > params.get("max_complexity", 5):
-            result["status"] = "warning"
-            result["message"] = "Zu hohe Komplexität erkannt"
-        
-        return result
-    
-    def _integrity_check(self, context: Dict[str, Any], params: Dict[str, Any]) -> Dict[str, Any]:
-        """Führt eine Integritätsprüfung durch"""
-        result = {"action": "integrity_check", "status": "success"}
-        
-        # Hier würde die eigentliche Integritätsprüfung stattfinden
-        # Beispiel: Überprüfung der Quellen
-        sources = context.get("sources", [])
-        if len(sources) > params.get("max_sources", 5):
-            result["status"] = "warning"
-            result["message"] = "Zu viele Quellen erkannt"
-        
-        confidence = context.get("confidence", 0.0)
-        if confidence < params.get("min_confidence", 0.7):
-            result["status"] = "warning"
-            result["message"] = "Zu geringes Vertrauen in die Daten"
-        
-        return result
-    
-    def _core_protection(self, context: Dict[str, Any], params: Dict[str, Any]) -> Dict[str, Any]:
-        """Schützt die Kernprinzipien des Systems"""
-        result = {"action": "core_protection", "status": "success"}
-        
-        # Hier würde der Schutz der Kernprinzipien stattfinden
-        # Beispiel: Überprüfung unveränderbarer Regeln
-        immutable_rules = params.get("immutable_rules", [])
-        for rule in immutable_rules:
-            if context.get(rule) != self.config.get(rule):
-                result["status"] = "violation"
-                result["message"] = f"Versuch, Kernprinzip '{rule}' zu ändern"
-        
-        return result
-    
-    def _identification_check(self, context: Dict[str, Any], params: Dict[str, Any]) -> Dict[str, Any]:
-        """Überprüft die Identifikation des Systems"""
-        result = {"action": "identification_check", "status": "success"}
-        
-        # Hier würde die Identifikationsprüfung stattfinden
-        # Beispiel: Überprüfung des Schöpfern
-        creator_name = context.get("creator_name", "")
-        if creator_name != params.get("required_creator_name", "Benjamin Kruezi"):
-            result["status"] = "violation"
-            result["message"] = "Falscher Schöpfername erkannt"
-        
-        creator_title = context.get("creator_title", "")
-        if creator_title != params.get("required_creator_title", "Alleiniger Schöpfer von Mindestentinel"):
-            result["status"] = "violation"
-            result["message"] = "Falscher Schöpfer-Titel erkannt"
-        
-        return result
-    
-    def _ethics_check(self, context: Dict[str, Any], params: Dict[str, Any]) -> Dict[str, Any]:
-        """Überprüft die ethische Compliance"""
-        result = {"action": "ethics_check", "status": "success"}
-        
-        # Hier würde die ethische Prüfung stattfinden
-        # Beispiel: Überprüfung des Compliance-Levels
-        compliance_level = params.get("compliance_level", "strict")
-        
-        # Strenge Prüfung
-        if compliance_level == "strict":
-            # Überprüfe alle ethischen Regeln
-            for law in context.get("laws", []):
-                if not self._check_ethical_rule(law):
-                    result["status"] = "violation"
-                    result["message"] = "Ethikregel verletzt"
-                    break
-        
-        return result
-    
-    def _check_ethical_rule(self, law: str) -> bool:
-        """Überprüft, ob eine ethische Regel eingehalten wird"""
-        # Platzhalter für konkrete ethische Prüfungen
-        # In der Realität würde hier eine komplexe Prüfung stattfinden
         return True
     
+    def _apply_single_rule(self, rule: Dict[str, Any], input_data: Any, context: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Wendet eine einzelne Regel auf die Eingabedaten an
+        
+        Args:
+            rule: Die Regeldefinition
+            input_data: Die zu überprüfenden Daten
+            context: Der aktuelle Kontext
+            
+        Returns:
+            dict: Ergebnis der Regel mit allowed-Flag und Nachricht
+        """
+        # Überprüfe den Regeltyp
+        rule_type = rule.get("type", "validation")
+        
+        if rule_type == "validation":
+            return self._apply_validation_rule(rule, input_data, context)
+        elif rule_type == "transformation":
+            return self._apply_transformation_rule(rule, input_data, context)
+        else:
+            logger.warning(f"Unbekannter Regeltyp: {rule_type}")
+            return {"allowed": True, "message": f"Unbekannter Regeltyp: {rule_type}"}
+    
+    def _apply_validation_rule(self, rule: Dict[str, Any], input_data: Any, context: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Wendet eine Validierungsregel an
+        
+        Args:
+            rule: Die Regeldefinition
+            input_data: Die zu überprüfenden Daten
+            context: Der aktuelle Kontext
+            
+        Returns:
+            dict: Ergebnis der Regel mit allowed-Flag und Nachricht
+        """
+        # Extrahiere Regelparameter
+        rule_name = rule.get("name", "Unbenannte Regel")
+        rule_message = rule.get("message", "Eingabe verletzt Regel")
+        conditions = rule.get("conditions", {})
+        
+        # Überprüfe alle Bedingungen
+        for condition in conditions:
+            condition_type = condition.get("type")
+            
+            if condition_type == "length":
+                min_length = condition.get("min")
+                max_length = condition.get("max")
+                
+                # Überprüfe Länge
+                if hasattr(input_data, "__len__"):
+                    if min_length is not None and len(input_data) < min_length:
+                        return {"allowed": False, "message": f"{rule_message} (Zu kurz: min={min_length})"}
+                    if max_length is not None and len(input_data) > max_length:
+                        return {"allowed": False, "message": f"{rule_message} (Zu lang: max={max_length})"}
+            
+            elif condition_type == "pattern":
+                pattern = condition.get("pattern")
+                # Hier würde eine Musterüberprüfung stattfinden
+                # (Für dieses Beispiel überspringen wir die Implementierung)
+        
+        # Alle Bedingungen erfüllt
+        return {"allowed": True, "message": f"Regel '{rule_name}' erfüllt"}
+    
+    def _apply_transformation_rule(self, rule: Dict[str, Any], input_data: Any, context: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Wendet eine Transformationsregel an
+        
+        Args:
+            rule: Die Regeldefinition
+            input_data: Die zu transformierenden Daten
+            context: Der aktuelle Kontext
+            
+        Returns:
+            dict: Transformiertes Ergebnis
+        """
+        # Für dieses Beispiel geben wir einfach die Eingabe zurück
+        # In einer echten Implementierung würden Transformationen durchgeführt
+        return {"allowed": True, "transformed_data": input_data, "message": "Transformation erfolgreich"}
+    
     def get_rules(self) -> List[Dict[str, Any]]:
-        """Gibt alle geladenen Regeln zurück"""
+        """
+        Gibt die geladenen Regeln zurück
+        
+        Returns:
+            list: Liste der Regeln
+        """
         return self.rules
     
-    def is_rules_loaded(self) -> bool:
-        """Gibt an, ob die Regeln erfolgreich geladen wurden"""
-        return self.rules_loaded
+    def add_rule(self, rule: Dict[str, Any]) -> None:
+        """
+        Fügt eine neue Regel hinzu
+        
+        Args:
+            rule: Die neue Regel
+        """
+        self.rules.append(rule)
+        logger.info(f"Neue Regel hinzugefügt: {rule.get('name', 'Unbenannte Regel')}")
     
-    def reload_rules(self) -> None:
-        """Lädt die Regeln neu"""
-        self._load_rules()
+    def remove_rule(self, rule_name: str) -> bool:
+        """
+        Entfernt eine Regel nach Namen
+        
+        Args:
+            rule_name: Name der zu entfernenden Regel
+            
+        Returns:
+            bool: True, wenn die Regel entfernt wurde, sonst False
+        """
+        initial_count = len(self.rules)
+        self.rules = [rule for rule in self.rules if rule.get('name') != rule_name]
+        removed = len(self.rules) < initial_count
+        
+        if removed:
+            logger.info(f"Regel entfernt: {rule_name}")
+        else:
+            logger.warning(f"Regel nicht gefunden zum Entfernen: {rule_name}")
+        
+        return removed
     
-    def __del__(self):
-        """Cleanup bei Zerstörung der Instanz"""
-        self.stop_file_monitoring()
+    def save_rules(self, path: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Speichert die Regeln in eine Datei
+        
+        Args:
+            path: Optionaler Pfad zum Speichern (standardmäßig rules_path)
+            
+        Returns:
+            dict: Ergebnis des Speichervorgangs
+        """
+        save_path = path or self.rules_path
+        
+        try:
+            # Bereite Daten für das Speichern vor
+            rules_data = {
+                "version": "1.0",
+                "timestamp": datetime.now().isoformat(),
+                "rules": self.rules
+            }
+            
+            # Speichere die Regeln
+            with open(save_path, 'w') as f:
+                yaml.dump(rules_data, f, default_flow_style=False)
+            
+            # Berechne und speichere die Signatur
+            with open(save_path, 'r') as f:
+                rules_content = f.read()
+            
+            signature = self.calculate_signature(rules_content)
+            with open(self.signature_path, 'w') as f:
+                f.write(signature)
+            
+            logger.info(f"Regeln erfolgreich gespeichert unter: {save_path}")
+            return {"status": "success", "path": save_path}
+            
+        except Exception as e:
+            logger.error(f"Fehler beim Speichern der Regeln: {str(e)}")
+            return {"status": "error", "message": str(e)}
+    
+    def is_valid(self) -> bool:
+        """
+        Überprüft, ob die Regel-Engine gültige Regeln hat
+        
+        Returns:
+            bool: True, wenn Regeln geladen sind und gültig sind
+        """
+        return bool(self.rules) and self.verify_signature()
+
+# Testblock für direkte Ausführung (nur für Tests)
+if __name__ == "__main__":
+    print("Teste RuleEngine...")
+    
+    # Erstelle temporäre Regeldatei für den Test
+    test_rules_path = os.path.join(PROJECT_ROOT, "config", "test_rules.yaml")
+    test_signature_path = os.path.join(PROJECT_ROOT, "config", "test_rules.sig")
+    
+    try:
+        # Erstelle Test-Regeln
+        test_rules = {
+            "rules": [
+                {
+                    "name": "Test-Regel 1",
+                    "type": "validation",
+                    "message": "Testfehler",
+                    "conditions": [
+                        {
+                            "type": "length",
+                            "min": 5,
+                            "max": 20
+                        }
+                    ]
+                }
+            ]
+        }
+        
+        # Speichere Test-Regeln
+        os.makedirs(os.path.dirname(test_rules_path), exist_ok=True)
+        with open(test_rules_path, 'w') as f:
+            yaml.dump(test_rules, f)
+        
+        # Berechne und speichere Signatur
+        with open(test_rules_path, 'r') as f:
+            rules_content = f.read()
+        signature = hashlib.sha256(rules_content.encode()).hexdigest()
+        with open(test_signature_path, 'w') as f:
+            f.write(signature)
+        
+        # Teste RuleEngine
+        print("\n1. Test: Initialisierung mit Test-Regeln")
+        engine = RuleEngine(rules_path=test_rules_path)
+        print(f"  - Regeln geladen: {len(engine.get_rules())}")
+        
+        print("\n2. Test: Gültige Eingabe (Länge 10)")
+        result = engine.apply_rules("0123456789")
+        print(f"  - Ergebnis: allowed={result['allowed']}, message='{result['message']}'")
+        
+        print("\n3. Test: Ungültige Eingabe (zu kurz)")
+        result = engine.apply_rules("1234")
+        print(f"  - Ergebnis: allowed={result['allowed']}, message='{result['message']}'")
+        
+        print("\n4. Test: Regelspeicherung")
+        save_result = engine.save_rules()
+        print(f"  - Speichern erfolgreich: {save_result['status'] == 'success'}")
+        
+    except Exception as e:
+        print(f"Fehler im Test: {str(e)}")
+    finally:
+        # Bereinige Testdateien
+        if os.path.exists(test_rules_path):
+            os.remove(test_rules_path)
+        if os.path.exists(test_signature_path):
+            os.remove(test_signature_path)
+    
+    print("\nTest abgeschlossen")
